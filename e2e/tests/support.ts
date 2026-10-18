@@ -138,3 +138,8 @@ export function localInput(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+
+/** Full-page screenshot into e2e/screens/ for visual review (not an assertion). */
+export async function snap(page: Page, name: string, fullPage = true) {
+  await page.screenshot({ path: `screens/${name}.png`, fullPage });
+}

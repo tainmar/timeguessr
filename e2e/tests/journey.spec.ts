@@ -13,6 +13,7 @@ import {
   REMOTE,
   RUN_ID,
   signIn,
+  snap,
   waitForMails,
 } from "./support";
 
@@ -59,6 +60,9 @@ function device(name: string) {
 
 test("organizer signs in with a magic link and creates a game", async () => {
   await signIn(organizer, organizerEmail);
+  await organizer.getByLabel(/What's your name/).fill("Morgan from HR");
+  await organizer.getByRole("button", { name: "Save" }).click();
+  await expect(organizer.getByLabel(/What's your name/)).toBeHidden();
   await organizer.getByLabel("New game").fill(GAME);
   await organizer.getByRole("button", { name: "Create game" }).click();
   await expect(organizer.getByTestId("game-title")).toContainText(GAME);
@@ -91,6 +95,7 @@ test("starting the collection emails every participant with the pending count", 
   for (const [who, email] of Object.entries({ alice, bob, carol })) {
     const [mail] = await waitForMails(email, (m) => /invited you to/.test(m.subject));
     expect(mail.subject).toContain(GAME);
+    expect(mail.subject).toContain("Morgan from HR invited you");
     expect(mail.text).toContain("3 of 3 participants haven't finished uploading yet");
     expect(mail.text).toContain("Dig out your old photos!");
     collectLinks[who] = relative(linkIn(mail, /https?:\/\/[^\s"<]+\/c\/[A-Za-z0-9_-]+/));
@@ -111,6 +116,8 @@ test("Alice uploads her two photos (EXIF suggestions, GPS, map pin) and becomes 
   await page.getByRole("button", { name: /Use the location stored in the photo/ }).click();
   await expect(page.getByText(/^Pin at 48\.858/)).toBeVisible();
   await page.getByTestId("caption-input").fill("Eiffel tower trip");
+  await page.waitForTimeout(1500);
+  await snap(page, "03-collect-form-desktop");
   await page.getByTestId("save-photo").click();
   await expect(page.getByText("Photo saved!")).toBeVisible();
   await expect(page.getByTestId("my-photo")).toHaveCount(1);
@@ -126,6 +133,7 @@ test("Alice uploads her two photos (EXIF suggestions, GPS, map pin) and becomes 
   await expect(page.getByTestId("my-photo")).toHaveCount(2);
   await expect(page.getByTestId("participant-status")).toHaveText("Ready");
   await expect(page.getByTestId("all-done")).toBeVisible();
+  await snap(page, "04-collect-done-desktop");
   await ctx.close();
 });
 
@@ -159,6 +167,8 @@ test("Bob uploads one photo (place search) and declares he's done", async () => 
 
   await page.getByTestId("im-done").click();
   await expect(page.getByTestId("participant-status")).toHaveText("Ready (done)");
+  await expect(page.getByTestId("photo-form")).toBeHidden();
+  await snap(page, "05-collect-mobile");
   await ctx.close();
 });
 
@@ -191,6 +201,7 @@ test("organizer sees statuses and in-app notifications", async () => {
   await expect(panel).toContainText("Alice is ready");
   await expect(panel).toContainText("Bob is ready");
   await expect(panel).toContainText("Carol uploaded a photo");
+  await snap(organizer, "06-organizer-collecting", false);
   await panel.getByRole("button", { name: "Mark all as read" }).click();
   await expect(organizer.getByTestId("bell-count")).toBeHidden();
   await organizer.keyboard.press("Escape");
@@ -226,6 +237,7 @@ test("marking the game ready creates the play link and emails it", async () => {
   const playUrl = await organizer.getByTestId("play-url").textContent();
   expect(playUrl).toMatch(/\/play\/[a-z0-9]{10}$/);
   playPath = relative(playUrl!);
+  await snap(organizer, "07-organizer-ready");
 
   const [mail] = await waitForMails(alice, (m) => /ready to play/.test(m.subject));
   expect(relative(linkIn(mail, /https?:\/\/[^\s"<]+\/play\/[a-z0-9]+/))).toBe(playPath);
@@ -238,7 +250,7 @@ test("marking the game ready creates the play link and emails it", async () => {
   await ctx.close();
 });
 
-async function playRound(page: Page, opts: { touch?: boolean; zoom?: boolean; yearSteps: number; fx: number }) {
+async function playRound(page: Page, opts: { touch?: boolean; zoom?: boolean; yearSteps: number; fx: number; shots?: string }) {
   await expect(page.getByTestId("round")).toBeVisible();
   if (opts.zoom) {
     const photo = page.getByTestId("round-photo");
@@ -266,12 +278,17 @@ async function playRound(page: Page, opts: { touch?: boolean; zoom?: boolean; ye
     await clickMap(map, opts.fx, 0.5);
   }
   await expect(page.getByTestId("submit-guess")).toBeEnabled();
+  if (opts.shots) await snap(page, `${opts.shots}-round`, false);
   await page.getByTestId("submit-guess").click();
   await expect(page.getByTestId("reveal")).toBeVisible();
   const score = Number((await page.getByTestId("round-score").textContent())!.replace("+", ""));
   expect(score).toBeGreaterThanOrEqual(0);
   expect(score).toBeLessThanOrEqual(1000);
   await mapReady(page.getByTestId("reveal-map"));
+  if (opts.shots) {
+    await page.waitForTimeout(1500);
+    await snap(page, `${opts.shots}-reveal`, false);
+  }
   return score;
 }
 
@@ -286,7 +303,12 @@ test("team Alpha plays all rounds on a desktop (zoom, slider, map) and sees the 
   let total = 0;
   for (let round = 1; round <= 4; round++) {
     await expect(page.getByTestId("round-counter")).toHaveText(`Photo ${round} / 4`);
-    total += await playRound(page, { zoom: round === 1, yearSteps: -3 - round, fx: 0.3 + round * 0.1 });
+    total += await playRound(page, {
+      zoom: round === 1,
+      yearSteps: -3 - round,
+      fx: 0.3 + round * 0.1,
+      shots: round === 1 ? "08-desktop" : undefined,
+    });
     await expect(page.getByTestId("total-score")).toHaveText(`${total.toLocaleString("en-US")} pts`);
     await page.getByTestId("next").click();
   }
@@ -308,7 +330,7 @@ test("team Beta plays on two phones sharing the team via its PIN", async () => {
   expect(pin).toMatch(/^\d{4}$/);
 
   let total = 0;
-  total += await playRound(phone1, { touch: true, yearSteps: 2, fx: 0.7 });
+  total += await playRound(phone1, { touch: true, yearSteps: 2, fx: 0.7, shots: "09-mobile" });
   await phone1.getByTestId("next").click();
 
   // A second phone joins the same team with the PIN and continues where the team is.
@@ -338,6 +360,8 @@ test("team Beta plays on two phones sharing the team via its PIN", async () => {
   totals.beta = total;
   await expect(phone2).toHaveURL(new RegExp(`${playPath}/leaderboard$`));
   await expect(betaRow.getByTestId("team-total")).toHaveText(total.toLocaleString("en-US"), { timeout: 15_000 });
+  await snap(alpha, "10-leaderboard");
+  await snap(phone2, "11-leaderboard-mobile");
 });
 
 test("leaderboard photos open in a zoomable lightbox that survives auto-refresh", async () => {
@@ -362,6 +386,7 @@ test("leaderboard photos open in a zoomable lightbox that survives auto-refresh"
   await expect.poll(() => content.evaluate((el) => getComputedStyle(el).transform)).not.toBe(initial);
   await page.waitForTimeout(500);
   const zoomed = await content.evaluate((el) => getComputedStyle(el).transform);
+  await snap(page, "12-lightbox", false);
   await page.waitForTimeout(11_000); // one auto-refresh later...
   await expect(lightbox).toBeVisible(); // ...the lightbox is still open
   expect(await content.evaluate((el) => getComputedStyle(el).transform)).toBe(zoomed);

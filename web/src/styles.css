@@ -802,7 +802,8 @@ legend {
 }
 
 /* ---------- Dashboard ---------- */
-.create-game .row input {
+.create-game .row input,
+.notice .row input {
   flex: 1;
 }
 .game-grid {
@@ -1142,6 +1143,12 @@ legend {
   height: 260px;
   margin: 12px 0;
 }
+.map-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
 .map-pin {
   width: 26px;
   height: 26px;
@@ -1150,14 +1157,9 @@ legend {
   transform: rotate(-45deg);
   border: 3px solid #fff;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
-  position: relative;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 .map-pin-label {
-  position: absolute;
-  left: 50%;
-  top: -26px;
-  transform: rotate(45deg) translate(-10%, 0);
   background: #fff;
   color: var(--navy);
   font-size: 11px;

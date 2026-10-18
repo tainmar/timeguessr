@@ -160,7 +160,7 @@ export default function Collect() {
         />
       )}
 
-      {view.can_upload && !editing && (
+      {view.can_upload && !editing && !participant.done && (
         adding ? (
           <PhotoForm
             // A fresh form (empty year, caption and pin) for every new photo.
@@ -175,11 +175,9 @@ export default function Collect() {
             }}
           />
         ) : (
-          !participant.done && (
-            <button className="btn primary block" onClick={() => setAdding(true)} data-testid="add-photo">
-              + Add photo {participant.photo_count + 1} of {n}
-            </button>
-          )
+          <button className="btn primary block" onClick={() => setAdding(true)} data-testid="add-photo">
+            + Add photo {participant.photo_count + 1} of {n}
+          </button>
         )
       )}
 

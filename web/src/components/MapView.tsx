@@ -35,8 +35,7 @@ interface Props {
 
 function markerElement(m: MapMarker): HTMLElement {
   const el = document.createElement("div");
-  el.className = "map-pin";
-  el.style.setProperty("--pin", m.color);
+  el.className = "map-marker";
   el.title = m.title ?? m.label ?? "";
   if (m.label) {
     const label = document.createElement("span");
@@ -44,6 +43,10 @@ function markerElement(m: MapMarker): HTMLElement {
     label.textContent = m.label;
     el.appendChild(label);
   }
+  const pin = document.createElement("div");
+  pin.className = "map-pin";
+  pin.style.setProperty("--pin", m.color);
+  el.appendChild(pin);
   return el;
 }
 

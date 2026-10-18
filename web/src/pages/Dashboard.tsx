@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
-import { api, ApiError, type GameListItem } from "../api";
+import { api, ApiError, type GameListItem, type Organizer } from "../api";
+import { useAuth } from "../auth";
 import { OrganizerLayout } from "../components/Layout";
 import { ErrorBox, GameStatusChip, ProgressBar, Spinner } from "../components/ui";
 import { formatDateTime, plural } from "../lib/format";
@@ -11,6 +12,17 @@ export default function Dashboard() {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
+  const { organizer, setOrganizer } = useAuth();
+  const [myName, setMyName] = useState("");
+
+  const saveName = async (e: FormEvent) => {
+    e.preventDefault();
+    try {
+      setOrganizer(await api<Organizer>("/me", { method: "PATCH", body: { name: myName } }));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not save your name.");
+    }
+  };
 
   const load = () =>
     api<GameListItem[]>("/games")
@@ -39,6 +51,17 @@ export default function Dashboard() {
       <div className="page-head">
         <h1>My games</h1>
       </div>
+      {organizer && !organizer.name && (
+        <form className="card notice" onSubmit={saveName}>
+          <label htmlFor="my-org-name">What's your name? Participants will see it in their invitation.</label>
+          <div className="row">
+            <input id="my-org-name" maxLength={80} value={myName} onChange={(e) => setMyName(e.target.value)} placeholder="e.g. Martin from HR" />
+            <button className="btn" disabled={!myName.trim()}>
+              Save
+            </button>
+          </div>
+        </form>
+      )}
       <form className="card create-game" onSubmit={create}>
         <label htmlFor="game-name">New game</label>
         <div className="row">

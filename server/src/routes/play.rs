@@ -49,7 +49,10 @@ async fn year_range(conn: &mut PgConnection, game_id: Uuid) -> AppResult<(i32, i
     Ok((min.unwrap_or(max) - YEAR_MARGIN, max))
 }
 
-pub async fn show(State(state): State<AppState>, Path(code): Path<String>) -> AppResult<Json<Value>> {
+pub async fn show(
+    State(state): State<AppState>,
+    Path(code): Path<String>,
+) -> AppResult<Json<Value>> {
     let mut conn = state.db.acquire().await?;
     let game = game_by_code(&mut conn, &code).await?;
     let sender = domain::load_sender(&mut conn, game.organizer_id).await?;
@@ -121,21 +124,27 @@ pub async fn join(
             ));
         };
         if state.pin_guard.is_locked(team.id) {
-            return Err(AppError::TooManyRequests("Too many wrong PINs. Try again in 15 minutes.".into()));
+            return Err(AppError::TooManyRequests(
+                "Too many wrong PINs. Try again in 15 minutes.".into(),
+            ));
         }
         if pin != team.pin {
             state.pin_guard.record_failure(team.id);
             return Err(AppError::Forbidden("Wrong PIN for this team.".into()));
         }
         state.pin_guard.clear(team.id);
-        return Ok(Json(json!({ "token": team.token, "team": { "id": team.id, "name": team.name, "pin": team.pin } })));
+        return Ok(Json(
+            json!({ "token": team.token, "team": { "id": team.id, "name": team.name, "pin": team.pin } }),
+        ));
     }
 
     if game.status != STATUS_READY {
         return Err(AppError::conflict("This game has ended."));
     }
     if game.joining_closed {
-        return Err(AppError::conflict("The organizer has closed joining for new teams."));
+        return Err(AppError::conflict(
+            "The organizer has closed joining for new teams.",
+        ));
     }
     let teams: i64 = sqlx::query_scalar("SELECT count(*) FROM teams WHERE game_id = $1")
         .bind(game.id)
@@ -164,18 +173,31 @@ pub async fn join(
     .fetch_optional(&mut *tx)
     .await?;
     let Some(team_id) = team_id else {
-        return Err(AppError::conflict("This team name was just taken. Pick another one."));
+        return Err(AppError::conflict(
+            "This team name was just taken. Pick another one.",
+        ));
     };
     tx.commit().await?;
-    Ok(Json(json!({ "token": token, "team": { "id": team_id, "name": name, "pin": pin } })))
+    Ok(Json(
+        json!({ "token": token, "team": { "id": team_id, "name": name, "pin": pin } }),
+    ))
 }
 
 fn team_token(headers: &HeaderMap) -> Option<&str> {
-    headers.get(TEAM_HEADER).and_then(|v| v.to_str().ok()).filter(|t| !t.is_empty())
+    headers
+        .get(TEAM_HEADER)
+        .and_then(|v| v.to_str().ok())
+        .filter(|t| !t.is_empty())
 }
 
-async fn team_for(conn: &mut PgConnection, game: &Game, headers: &HeaderMap, lock: bool) -> AppResult<Team> {
-    let token = team_token(headers).ok_or_else(|| AppError::Forbidden("Join the game with a team name first.".into()))?;
+async fn team_for(
+    conn: &mut PgConnection,
+    game: &Game,
+    headers: &HeaderMap,
+    lock: bool,
+) -> AppResult<Team> {
+    let token = team_token(headers)
+        .ok_or_else(|| AppError::Forbidden("Join the game with a team name first.".into()))?;
     let team = sqlx::query_as::<_, Team>(&format!(
         "SELECT {TEAM_COLUMNS} FROM teams WHERE token = $1 {}",
         if lock { "FOR UPDATE" } else { "" }
@@ -184,7 +206,11 @@ async fn team_for(conn: &mut PgConnection, game: &Game, headers: &HeaderMap, loc
     .fetch_optional(conn)
     .await?
     .filter(|t| t.game_id == game.id)
-    .ok_or_else(|| AppError::Forbidden("Your team was not found. Join again with your team name and PIN.".into()))?;
+    .ok_or_else(|| {
+        AppError::Forbidden(
+            "Your team was not found. Join again with your team name and PIN.".into(),
+        )
+    })?;
     Ok(team)
 }
 
@@ -207,13 +233,19 @@ struct Progression {
 
 impl Progression {
     async fn load(conn: &mut PgConnection, team: &Team) -> AppResult<Self> {
-        let existing: HashSet<Uuid> = sqlx::query_scalar("SELECT id FROM photos WHERE game_id = $1")
-            .bind(team.game_id)
-            .fetch_all(&mut *conn)
-            .await?
-            .into_iter()
+        let existing: HashSet<Uuid> =
+            sqlx::query_scalar("SELECT id FROM photos WHERE game_id = $1")
+                .bind(team.game_id)
+                .fetch_all(&mut *conn)
+                .await?
+                .into_iter()
+                .collect();
+        let order = team
+            .photo_order
+            .iter()
+            .copied()
+            .filter(|id| existing.contains(id))
             .collect();
-        let order = team.photo_order.iter().copied().filter(|id| existing.contains(id)).collect();
         let guesses = sqlx::query_as::<_, GuessRow>(
             "SELECT photo_id, year, lat, lng, distance_km, year_score, location_score FROM guesses WHERE team_id = $1",
         )
@@ -227,7 +259,9 @@ impl Progression {
     }
 
     fn unanswered(&self) -> impl Iterator<Item = &Uuid> {
-        self.order.iter().filter(|id| !self.guesses.contains_key(id))
+        self.order
+            .iter()
+            .filter(|id| !self.guesses.contains_key(id))
     }
 
     fn current(&self) -> Option<Uuid> {
@@ -235,7 +269,10 @@ impl Progression {
     }
 
     fn played(&self) -> usize {
-        self.order.iter().filter(|id| self.guesses.contains_key(id)).count()
+        self.order
+            .iter()
+            .filter(|id| self.guesses.contains_key(id))
+            .count()
     }
 
     fn total_score(&self) -> i64 {
@@ -324,7 +361,10 @@ impl From<Answer> for AnswerView {
             lat: a.lat,
             lng: a.lng,
             caption: a.caption,
-            owner: a.owner.filter(|o| !o.is_empty()).unwrap_or_else(|| "A mystery guest".into()),
+            owner: a
+                .owner
+                .filter(|o| !o.is_empty())
+                .unwrap_or_else(|| "A mystery guest".into()),
         }
     }
 }
@@ -360,7 +400,9 @@ pub async fn guess(
             return Err(AppError::conflict("The organizer has ended the game."));
         }
         if progression.current() != Some(body.photo_id) {
-            return Err(AppError::conflict("This photo isn't your current round. Refresh the page."));
+            return Err(AppError::conflict(
+                "This photo isn't your current round. Refresh the page.",
+            ));
         }
         let answer = load_answer(&mut tx, body.photo_id).await?;
         let distance = scoring::distance_km(lat, lng, answer.lat, answer.lng);
@@ -418,7 +460,11 @@ pub async fn guess(
     let answer: AnswerView = load_answer(&mut tx, body.photo_id).await?.into();
     tx.commit().await?;
     let g = &progression.guesses[&body.photo_id];
-    let round_number = progression.order.iter().position(|id| *id == body.photo_id).map(|i| i + 1);
+    let round_number = progression
+        .order
+        .iter()
+        .position(|id| *id == body.photo_id)
+        .map(|i| i + 1);
     Ok(Json(json!({
         "photo_id": body.photo_id,
         "image_url": image_url(body.photo_id),
@@ -503,7 +549,10 @@ pub async fn leaderboard(
     .await?;
 
     let viewer_finished = match &viewer {
-        Some(team) => Progression::load(&mut conn, team).await?.current().is_none(),
+        Some(team) => Progression::load(&mut conn, team)
+            .await?
+            .current()
+            .is_none(),
         None => false,
     };
     let reveal = game.status == STATUS_FINISHED || viewer_finished;
@@ -541,7 +590,10 @@ pub async fn leaderboard(
         .collect();
     rows.sort_by(|a, b| {
         b["total"].as_i64().cmp(&a["total"].as_i64()).then_with(|| {
-            a["finished_at"].as_str().unwrap_or("~").cmp(b["finished_at"].as_str().unwrap_or("~"))
+            a["finished_at"]
+                .as_str()
+                .unwrap_or("~")
+                .cmp(b["finished_at"].as_str().unwrap_or("~"))
         })
     });
 

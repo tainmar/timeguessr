@@ -35,7 +35,10 @@ pub enum ImageProcessError {
 fn is_heic(bytes: &[u8]) -> bool {
     bytes.len() > 12
         && &bytes[4..8] == b"ftyp"
-        && matches!(&bytes[8..12], b"heic" | b"heix" | b"hevc" | b"hevx" | b"mif1" | b"msf1" | b"avif")
+        && matches!(
+            &bytes[8..12],
+            b"heic" | b"heix" | b"hevc" | b"hevx" | b"mif1" | b"msf1" | b"avif"
+        )
 }
 
 pub fn process(bytes: &[u8]) -> Result<ProcessedImage, ImageProcessError> {
@@ -132,7 +135,10 @@ mod tests {
 
     #[test]
     fn rejects_garbage_and_heic() {
-        assert!(matches!(process(b"not an image at all"), Err(ImageProcessError::Unsupported(_))));
+        assert!(matches!(
+            process(b"not an image at all"),
+            Err(ImageProcessError::Unsupported(_))
+        ));
         let mut heic = vec![0, 0, 0, 24];
         heic.extend_from_slice(b"ftypheic");
         heic.extend_from_slice(&[0; 32]);

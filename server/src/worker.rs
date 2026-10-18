@@ -91,10 +91,18 @@ pub async fn process_outbox(state: &AppState) -> AppResult<usize> {
                 // Provider's daily quota: wait until the next UTC day.
                 let tomorrow = next_utc_midnight(Utc::now()) + chrono::Duration::minutes(5);
                 tracing::warn!(email = %email.id, %message, "email quota exceeded, deferring");
-                reschedule(state, email.id, tomorrow, &format!("Deferred: {message}"), true).await?;
+                reschedule(
+                    state,
+                    email.id,
+                    tomorrow,
+                    &format!("Deferred: {message}"),
+                    true,
+                )
+                .await?;
             }
             Err(SendError::Retry { message, after }) if email.attempts < MAX_ATTEMPTS => {
-                let backoff = after.unwrap_or(Duration::from_secs(30 * (email.attempts as u64).pow(2)));
+                let backoff =
+                    after.unwrap_or(Duration::from_secs(30 * (email.attempts as u64).pow(2)));
                 let at = Utc::now() + chrono::Duration::from_std(backoff).unwrap_or_default();
                 tracing::warn!(email = %email.id, %message, "email send failed, retrying");
                 reschedule(state, email.id, at, &message, false).await?;
@@ -106,13 +114,19 @@ pub async fn process_outbox(state: &AppState) -> AppResult<usize> {
                     .bind(&message)
                     .execute(&state.db)
                     .await?;
-                if let (Some(organizer_id), true) = (email.organizer_id, email.participant_id.is_some()) {
+                if let (Some(organizer_id), true) =
+                    (email.organizer_id, email.participant_id.is_some())
+                {
                     let mut conn = state.db.acquire().await?;
                     notifications::notify(
                         &mut conn,
                         &state.config,
                         organizer_id,
-                        &EmailFailed { game_id: email.game_id, recipient: email.to_email.clone(), error: message },
+                        &EmailFailed {
+                            game_id: email.game_id,
+                            recipient: email.to_email.clone(),
+                            error: message,
+                        },
                     )
                     .await?;
                 }
@@ -215,12 +229,14 @@ async fn send_due_reminders(state: &AppState) -> AppResult<()> {
         } else {
             "skipped"
         };
-        sqlx::query("UPDATE reminders SET status = $2, processed_at = now(), recipients = $3 WHERE id = $1")
-            .bind(reminder_id)
-            .bind(status)
-            .bind(recipients as i32)
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query(
+            "UPDATE reminders SET status = $2, processed_at = now(), recipients = $3 WHERE id = $1",
+        )
+        .bind(reminder_id)
+        .bind(status)
+        .bind(recipients as i32)
+        .execute(&mut *tx)
+        .await?;
         tx.commit().await?;
         tracing::info!(%reminder_id, %game_id, recipients, status, "reminder processed");
     }

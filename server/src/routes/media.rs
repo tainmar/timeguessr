@@ -22,10 +22,16 @@ async fn serve(state: &AppState, id: Uuid, column: &str) -> AppResult<impl IntoR
     ))
 }
 
-pub async fn full(State(state): State<AppState>, Path(id): Path<Uuid>) -> AppResult<impl IntoResponse> {
+pub async fn full(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> AppResult<impl IntoResponse> {
     serve(&state, id, "image").await
 }
 
-pub async fn thumb(State(state): State<AppState>, Path(id): Path<Uuid>) -> AppResult<impl IntoResponse> {
+pub async fn thumb(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> AppResult<impl IntoResponse> {
     serve(&state, id, "thumb").await
 }

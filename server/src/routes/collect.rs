@@ -41,7 +41,10 @@ pub struct PhotoView {
 
 const PHOTO_COLUMNS: &str = "id, year, lat, lng, caption, width, height, created_at";
 
-pub async fn show(State(state): State<AppState>, Path(token): Path<String>) -> AppResult<Json<Value>> {
+pub async fn show(
+    State(state): State<AppState>,
+    Path(token): Path<String>,
+) -> AppResult<Json<Value>> {
     let mut conn = state.db.acquire().await?;
     let participant = participant_by_token(&mut conn, &token).await?;
     let game = domain::load_game(&mut conn, participant.game_id).await?;
@@ -107,7 +110,9 @@ pub async fn update(
 fn validate_year(year: i32) -> AppResult<i32> {
     let max = Utc::now().year();
     if !(MIN_YEAR..=max).contains(&year) {
-        return Err(AppError::bad(format!("The year must be between {MIN_YEAR} and {max}.")));
+        return Err(AppError::bad(format!(
+            "The year must be between {MIN_YEAR} and {max}."
+        )));
     }
     Ok(year)
 }
@@ -140,7 +145,9 @@ pub async fn upload(
         let participant = participant_by_token(&mut conn, &token).await?;
         let game = domain::load_game(&mut conn, participant.game_id).await?;
         if game.status != STATUS_COLLECTING {
-            return Err(AppError::conflict("Photo collection is closed: the organizer has started the game."));
+            return Err(AppError::conflict(
+                "Photo collection is closed: the organizer has started the game.",
+            ));
         }
         if participant.photo_count >= game.photos_per_participant as i64 {
             return Err(AppError::conflict(format!(
@@ -167,11 +174,16 @@ pub async fn upload(
                 }
             })?;
             if bytes.len() > MAX_UPLOAD_BYTES {
-                return Err(AppError::PayloadTooLarge("This photo is too big (20 MB max).".into()));
+                return Err(AppError::PayloadTooLarge(
+                    "This photo is too big (20 MB max).".into(),
+                ));
             }
             file = Some(bytes.to_vec());
         } else {
-            let value = field.text().await.map_err(|e| AppError::bad(e.to_string()))?;
+            let value = field
+                .text()
+                .await
+                .map_err(|e| AppError::bad(e.to_string()))?;
             match name.as_str() {
                 "year" => year = value.trim().parse::<i32>().ok(),
                 "lat" => lat = value.trim().parse::<f64>().ok(),
@@ -182,15 +194,25 @@ pub async fn upload(
         }
     }
     let file = file.ok_or_else(|| AppError::bad("Please choose a photo."))?;
-    let year = validate_year(year.ok_or_else(|| AppError::bad("Please enter the year the photo was taken."))?)?;
+    let year = validate_year(
+        year.ok_or_else(|| AppError::bad("Please enter the year the photo was taken."))?,
+    )?;
     let (lat, lng) = match (lat, lng) {
         (Some(lat), Some(lng)) => validate_lat_lng(lat, lng).map_err(AppError::BadRequest)?,
-        _ => return Err(AppError::bad("Please place the photo's location on the map.")),
+        _ => {
+            return Err(AppError::bad(
+                "Please place the photo's location on the map.",
+            ))
+        }
     };
     let caption = opt_clean_line(caption.as_deref(), 200);
 
     let processed = {
-        let _permit = state.decode_permits.acquire().await.expect("semaphore open");
+        let _permit = state
+            .decode_permits
+            .acquire()
+            .await
+            .expect("semaphore open");
         tokio::task::spawn_blocking(move || images::process(&file))
             .await
             .map_err(|e| AppError::Internal(e.into()))?
@@ -272,8 +294,11 @@ pub async fn update_photo(
     .fetch_one(&mut *tx)
     .await?;
     let year = validate_year(body.year.unwrap_or(current.year))?;
-    let (lat, lng) = validate_lat_lng(body.lat.unwrap_or(current.lat), body.lng.unwrap_or(current.lng))
-        .map_err(AppError::BadRequest)?;
+    let (lat, lng) = validate_lat_lng(
+        body.lat.unwrap_or(current.lat),
+        body.lng.unwrap_or(current.lng),
+    )
+    .map_err(AppError::BadRequest)?;
     let caption = match body.caption {
         Some(c) => opt_clean_line(Some(&c), 200),
         None => current.caption,
@@ -326,10 +351,16 @@ async fn set_done(state: &AppState, token: &str, done: bool) -> AppResult<Json<V
     Ok(Json(json!({ "ok": true })))
 }
 
-pub async fn done(State(state): State<AppState>, Path(token): Path<String>) -> AppResult<Json<Value>> {
+pub async fn done(
+    State(state): State<AppState>,
+    Path(token): Path<String>,
+) -> AppResult<Json<Value>> {
     set_done(&state, &token, true).await
 }
 
-pub async fn undone(State(state): State<AppState>, Path(token): Path<String>) -> AppResult<Json<Value>> {
+pub async fn undone(
+    State(state): State<AppState>,
+    Path(token): Path<String>,
+) -> AppResult<Json<Value>> {
     set_done(&state, &token, false).await
 }

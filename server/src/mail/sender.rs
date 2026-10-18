@@ -17,7 +17,10 @@ pub struct Delivery<'a> {
 #[derive(Debug)]
 pub enum SendError {
     /// Try again later (rate limited, provider or network error).
-    Retry { message: String, after: Option<Duration> },
+    Retry {
+        message: String,
+        after: Option<Duration>,
+    },
     /// The provider's daily quota is exhausted: retry after midnight UTC.
     QuotaExceeded(String),
     /// Will never succeed (invalid address, unverified domain...).
@@ -64,7 +67,10 @@ async fn send_resend(
         .timeout(Duration::from_secs(20))
         .send()
         .await
-        .map_err(|e| SendError::Retry { message: format!("network error: {e}"), after: None })?;
+        .map_err(|e| SendError::Retry {
+            message: format!("network error: {e}"),
+            after: None,
+        })?;
 
     let status = response.status();
     let retry_after = response
@@ -79,7 +85,10 @@ async fn send_resend(
         return payload["id"]
             .as_str()
             .map(str::to_string)
-            .ok_or_else(|| SendError::Retry { message: "missing id in Resend response".into(), after: None });
+            .ok_or_else(|| SendError::Retry {
+                message: "missing id in Resend response".into(),
+                after: None,
+            });
     }
     let name = payload["name"].as_str().unwrap_or_default();
     let message = format!(
@@ -89,8 +98,14 @@ async fn send_resend(
     );
     match status.as_u16() {
         429 if name.contains("quota") => Err(SendError::QuotaExceeded(message)),
-        429 | 408 | 409 => Err(SendError::Retry { message, after: retry_after }),
-        s if s >= 500 => Err(SendError::Retry { message, after: retry_after }),
+        429 | 408 | 409 => Err(SendError::Retry {
+            message,
+            after: retry_after,
+        }),
+        s if s >= 500 => Err(SendError::Retry {
+            message,
+            after: retry_after,
+        }),
         _ => Err(SendError::Permanent(message)),
     }
 }

@@ -148,9 +148,18 @@ mod tests {
         assert_eq!(
             valid,
             vec![
-                ParsedRecipient { email: "alice@example.com".into(), name: None },
-                ParsedRecipient { email: "bob@example.com".into(), name: Some("Bob Smith".into()) },
-                ParsedRecipient { email: "carol@ex.org".into(), name: Some("Carol".into()) },
+                ParsedRecipient {
+                    email: "alice@example.com".into(),
+                    name: None
+                },
+                ParsedRecipient {
+                    email: "bob@example.com".into(),
+                    name: Some("Bob Smith".into())
+                },
+                ParsedRecipient {
+                    email: "carol@ex.org".into(),
+                    name: Some("Carol".into())
+                },
             ]
         );
         assert_eq!(invalid, vec!["not-an-email".to_string()]);
@@ -175,7 +184,10 @@ mod tests {
 
     #[test]
     fn escapes_html() {
-        assert_eq!(escape_html("<b>\"x\" & 'y'</b>"), "&lt;b&gt;&quot;x&quot; &amp; &#39;y&#39;&lt;/b&gt;");
+        assert_eq!(
+            escape_html("<b>\"x\" & 'y'</b>"),
+            "&lt;b&gt;&quot;x&quot; &amp; &#39;y&#39;&lt;/b&gt;"
+        );
     }
 
     #[test]

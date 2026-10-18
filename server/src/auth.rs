@@ -23,7 +23,10 @@ pub struct Organizer {
     pub email_notifications: String,
 }
 
-async fn organizer_from_parts(parts: &Parts, state: &AppState) -> Result<Option<Organizer>, AppError> {
+async fn organizer_from_parts(
+    parts: &Parts,
+    state: &AppState,
+) -> Result<Option<Organizer>, AppError> {
     let jar = CookieJar::from_headers(&parts.headers);
     let Some(cookie) = jar.get(SESSION_COOKIE) else {
         return Ok(None);
@@ -48,7 +51,9 @@ where
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let state = AppState::from_ref(state);
-        organizer_from_parts(parts, &state).await?.ok_or(AppError::Unauthorized)
+        organizer_from_parts(parts, &state)
+            .await?
+            .ok_or(AppError::Unauthorized)
     }
 }
 
@@ -59,7 +64,10 @@ where
 {
     type Rejection = AppError;
 
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Option<Self>, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &S,
+    ) -> Result<Option<Self>, Self::Rejection> {
         let state = AppState::from_ref(state);
         organizer_from_parts(parts, &state).await
     }

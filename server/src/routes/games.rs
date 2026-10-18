@@ -18,7 +18,12 @@ use crate::schedule;
 use crate::state::AppState;
 use crate::util::{clean_line, clean_text, parse_recipients, random_code};
 
-async fn owned_game(conn: &mut PgConnection, organizer: &Organizer, id: Uuid, lock: bool) -> AppResult<Game> {
+async fn owned_game(
+    conn: &mut PgConnection,
+    organizer: &Organizer,
+    id: Uuid,
+    lock: bool,
+) -> AppResult<Game> {
     let game = if lock {
         domain::lock_game(conn, id, true).await?
     } else {
@@ -45,7 +50,10 @@ pub struct GameListItem {
     teams: i64,
 }
 
-pub async fn list(State(state): State<AppState>, organizer: Organizer) -> AppResult<Json<Vec<GameListItem>>> {
+pub async fn list(
+    State(state): State<AppState>,
+    organizer: Organizer,
+) -> AppResult<Json<Vec<GameListItem>>> {
     let games = sqlx::query_as::<_, GameListItem>(
         "SELECT g.id, g.name, g.status, g.photos_per_participant, g.deadline_at, g.timezone, g.created_at,
                 (SELECT count(*) FROM participant_progress p WHERE p.game_id = g.id) AS participants,
@@ -81,15 +89,21 @@ pub async fn create(
     .fetch_one(&state.db)
     .await?;
     if recent >= 20 {
-        return Err(AppError::TooManyRequests("You've created a lot of games today. Please try again tomorrow.".into()));
+        return Err(AppError::TooManyRequests(
+            "You've created a lot of games today. Please try again tomorrow.".into(),
+        ));
     }
-    let id: Uuid = sqlx::query_scalar("INSERT INTO games (organizer_id, name) VALUES ($1, $2) RETURNING id")
-        .bind(organizer.id)
-        .bind(name)
-        .fetch_one(&state.db)
-        .await?;
+    let id: Uuid =
+        sqlx::query_scalar("INSERT INTO games (organizer_id, name) VALUES ($1, $2) RETURNING id")
+            .bind(organizer.id)
+            .bind(name)
+            .fetch_one(&state.db)
+            .await?;
     Ok(Json(json!({ "id": id })))
 }
+
+/// participant_id, kind, status, last_error, created_at
+type LastEmailRow = (Uuid, String, String, Option<String>, DateTime<Utc>);
 
 #[derive(Serialize)]
 struct LastEmail {
@@ -141,7 +155,7 @@ pub async fn show(
     let game = owned_game(&mut conn, &organizer, id, false).await?;
     let progress = domain::game_progress(&mut conn, id).await?;
 
-    let last_emails: Vec<(Uuid, String, String, Option<String>, DateTime<Utc>)> = sqlx::query_as(
+    let last_emails: Vec<LastEmailRow> = sqlx::query_as(
         "SELECT DISTINCT ON (participant_id) participant_id, kind, status, last_error, created_at
          FROM emails WHERE game_id = $1 AND participant_id IS NOT NULL
          ORDER BY participant_id, created_at DESC",
@@ -235,14 +249,20 @@ pub async fn update(
         }
         None => game.name.clone(),
     };
-    let photos = body.photos_per_participant.unwrap_or(game.photos_per_participant);
+    let photos = body
+        .photos_per_participant
+        .unwrap_or(game.photos_per_participant);
     if !(1..=10).contains(&photos) {
-        return Err(AppError::bad("Photos per participant must be between 1 and 10."));
+        return Err(AppError::bad(
+            "Photos per participant must be between 1 and 10.",
+        ));
     }
     if photos != game.photos_per_participant
         && ![STATUS_DRAFT, STATUS_COLLECTING].contains(&game.status.as_str())
     {
-        return Err(AppError::conflict("The number of photos can't change once the game is ready."));
+        return Err(AppError::conflict(
+            "The number of photos can't change once the game is ready.",
+        ));
     }
     let message = match body.message {
         Some(m) => Some(clean_text(&m, 1000)).filter(|m| !m.is_empty()),
@@ -295,7 +315,9 @@ pub async fn add_participants(
     let mut tx = state.db.begin().await?;
     let game = owned_game(&mut tx, &organizer, id, true).await?;
     if ![STATUS_DRAFT, STATUS_COLLECTING].contains(&game.status.as_str()) {
-        return Err(AppError::conflict("Participants can't be added once the game is ready."));
+        return Err(AppError::conflict(
+            "Participants can't be added once the game is ready.",
+        ));
     }
     let existing: i64 = sqlx::query_scalar("SELECT count(*) FROM participants WHERE game_id = $1")
         .bind(id)
@@ -328,8 +350,13 @@ pub async fn add_participants(
     }
 
     if game.status == STATUS_COLLECTING && !added.is_empty() {
-        mail::check_daily_cap(&mut tx, organizer.id, added.len() as i64, state.config.max_emails_per_organizer_per_day)
-            .await?;
+        mail::check_daily_cap(
+            &mut tx,
+            organizer.id,
+            added.len() as i64,
+            state.config.max_emails_per_organizer_per_day,
+        )
+        .await?;
         let sender = domain::load_sender(&mut tx, organizer.id).await?;
         let stats = domain::collection_stats(&mut tx, id).await?;
         for pid in &added {
@@ -348,13 +375,17 @@ pub async fn add_participants(
     }
     // New participants mean the collection isn't complete anymore.
     if !added.is_empty() {
-        sqlx::query("UPDATE games SET all_ready_notified_at = NULL, updated_at = now() WHERE id = $1")
-            .bind(id)
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query(
+            "UPDATE games SET all_ready_notified_at = NULL, updated_at = now() WHERE id = $1",
+        )
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
     }
     tx.commit().await?;
-    Ok(Json(json!({ "added": added.len(), "duplicates": duplicates, "invalid": invalid })))
+    Ok(Json(
+        json!({ "added": added.len(), "duplicates": duplicates, "invalid": invalid }),
+    ))
 }
 
 pub async fn remove_participant(
@@ -389,7 +420,9 @@ pub async fn resend_invite(
     let mut tx = state.db.begin().await?;
     let game = owned_game(&mut tx, &organizer, id, true).await?;
     if game.status != STATUS_COLLECTING {
-        return Err(AppError::conflict("Invitations can only be sent while collecting photos."));
+        return Err(AppError::conflict(
+            "Invitations can only be sent while collecting photos.",
+        ));
     }
     let progress = domain::participant_progress(&mut tx, pid).await?;
     if progress.game_id != id {
@@ -402,13 +435,29 @@ pub async fn resend_invite(
     .fetch_one(&mut *tx)
     .await?;
     if recent > 0 {
-        return Err(AppError::TooManyRequests("An email was just sent to this participant. Please wait a moment.".into()));
+        return Err(AppError::TooManyRequests(
+            "An email was just sent to this participant. Please wait a moment.".into(),
+        ));
     }
-    mail::check_daily_cap(&mut tx, organizer.id, 1, state.config.max_emails_per_organizer_per_day).await?;
+    mail::check_daily_cap(
+        &mut tx,
+        organizer.id,
+        1,
+        state.config.max_emails_per_organizer_per_day,
+    )
+    .await?;
     let sender = domain::load_sender(&mut tx, organizer.id).await?;
     let stats = domain::collection_stats(&mut tx, id).await?;
-    domain::enqueue_collection_email(&mut tx, &state.config, &game, &sender, &progress, stats, CollectionEmailKind::Invite)
-        .await?;
+    domain::enqueue_collection_email(
+        &mut tx,
+        &state.config,
+        &game,
+        &sender,
+        &progress,
+        stats,
+        CollectionEmailKind::Invite,
+    )
+    .await?;
     tx.commit().await?;
     Ok(Json(json!({ "ok": true })))
 }
@@ -422,14 +471,19 @@ pub struct ScheduleBody {
 }
 
 fn validate_schedule(body: &ScheduleBody) -> AppResult<chrono_tz::Tz> {
-    let tz = schedule::parse_tz(&body.timezone).ok_or_else(|| AppError::bad("Unknown time zone."))?;
+    let tz =
+        schedule::parse_tz(&body.timezone).ok_or_else(|| AppError::bad("Unknown time zone."))?;
     if body.deadline_at <= Utc::now() + Duration::minutes(10) {
         return Err(AppError::bad("The deadline must be in the future."));
     }
     if body.deadline_at > Utc::now() + Duration::days(365) {
         return Err(AppError::bad("The deadline must be within a year."));
     }
-    if body.reminder_days.iter().any(|d| !(0..=schedule::MAX_REMINDER_DAYS).contains(d)) {
+    if body
+        .reminder_days
+        .iter()
+        .any(|d| !(0..=schedule::MAX_REMINDER_DAYS).contains(d))
+    {
         return Err(AppError::bad("Reminders must be between D-0 and D-30."));
     }
     Ok(tz)
@@ -443,22 +497,29 @@ async fn insert_reminders(
     days: &[i32],
     not_before: DateTime<Utc>,
 ) -> AppResult<()> {
-    let already_sent: Vec<i32> =
-        sqlx::query_scalar("SELECT days_before FROM reminders WHERE game_id = $1 AND status = 'sent'")
-            .bind(game_id)
-            .fetch_all(&mut *conn)
-            .await?;
+    let already_sent: Vec<i32> = sqlx::query_scalar(
+        "SELECT days_before FROM reminders WHERE game_id = $1 AND status = 'sent'",
+    )
+    .bind(game_id)
+    .fetch_all(&mut *conn)
+    .await?;
     for planned in schedule::plan_reminders(deadline, tz, days, not_before) {
         if planned.skipped && already_sent.contains(&planned.days_before) {
             continue;
         }
-        sqlx::query("INSERT INTO reminders (game_id, days_before, send_at, status) VALUES ($1, $2, $3, $4)")
-            .bind(game_id)
-            .bind(planned.days_before)
-            .bind(planned.send_at)
-            .bind(if planned.skipped { "skipped" } else { "scheduled" })
-            .execute(&mut *conn)
-            .await?;
+        sqlx::query(
+            "INSERT INTO reminders (game_id, days_before, send_at, status) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(game_id)
+        .bind(planned.days_before)
+        .bind(planned.send_at)
+        .bind(if planned.skipped {
+            "skipped"
+        } else {
+            "scheduled"
+        })
+        .execute(&mut *conn)
+        .await?;
     }
     Ok(())
 }
@@ -479,8 +540,13 @@ pub async fn start_collecting(
     if participants.is_empty() {
         return Err(AppError::bad("Add at least one participant first."));
     }
-    mail::check_daily_cap(&mut tx, organizer.id, participants.len() as i64, state.config.max_emails_per_organizer_per_day)
-        .await?;
+    mail::check_daily_cap(
+        &mut tx,
+        organizer.id,
+        participants.len() as i64,
+        state.config.max_emails_per_organizer_per_day,
+    )
+    .await?;
 
     sqlx::query(
         "UPDATE games SET status = 'collecting', deadline_at = $2, timezone = $3, collection_started_at = now(),
@@ -493,14 +559,30 @@ pub async fn start_collecting(
     .execute(&mut *tx)
     .await?;
     // Reminders that would land within 12h of the invitation are pointless: skip them.
-    insert_reminders(&mut tx, id, body.deadline_at, tz, &body.reminder_days, Utc::now() + Duration::hours(12)).await?;
+    insert_reminders(
+        &mut tx,
+        id,
+        body.deadline_at,
+        tz,
+        &body.reminder_days,
+        Utc::now() + Duration::hours(12),
+    )
+    .await?;
 
     let game = domain::load_game(&mut tx, id).await?;
     let sender = domain::load_sender(&mut tx, organizer.id).await?;
     let stats = domain::collection_stats(&mut tx, id).await?;
     for p in &participants {
-        domain::enqueue_collection_email(&mut tx, &state.config, &game, &sender, p, stats, CollectionEmailKind::Invite)
-            .await?;
+        domain::enqueue_collection_email(
+            &mut tx,
+            &state.config,
+            &game,
+            &sender,
+            p,
+            stats,
+            CollectionEmailKind::Invite,
+        )
+        .await?;
     }
     tx.commit().await?;
     Ok(Json(json!({ "ok": true, "invited": participants.len() })))
@@ -516,7 +598,9 @@ pub async fn update_schedule(
     let mut tx = state.db.begin().await?;
     let game = owned_game(&mut tx, &organizer, id, true).await?;
     if game.status != STATUS_COLLECTING {
-        return Err(AppError::conflict("The schedule can only change while collecting photos."));
+        return Err(AppError::conflict(
+            "The schedule can only change while collecting photos.",
+        ));
     }
     sqlx::query(
         "UPDATE games SET deadline_at = $2, timezone = $3, deadline_notified_at = NULL, updated_at = now() WHERE id = $1",
@@ -530,7 +614,15 @@ pub async fn update_schedule(
         .bind(id)
         .execute(&mut *tx)
         .await?;
-    insert_reminders(&mut tx, id, body.deadline_at, tz, &body.reminder_days, Utc::now()).await?;
+    insert_reminders(
+        &mut tx,
+        id,
+        body.deadline_at,
+        tz,
+        &body.reminder_days,
+        Utc::now(),
+    )
+    .await?;
     tx.commit().await?;
     Ok(Json(json!({ "ok": true })))
 }
@@ -550,14 +642,18 @@ pub async fn mark_ready(
     let mut tx = state.db.begin().await?;
     let game = owned_game(&mut tx, &organizer, id, true).await?;
     if game.status != STATUS_COLLECTING {
-        return Err(AppError::conflict("Only a game that is collecting photos can be marked as ready."));
+        return Err(AppError::conflict(
+            "Only a game that is collecting photos can be marked as ready.",
+        ));
     }
     let photos: i64 = sqlx::query_scalar("SELECT count(*) FROM photos WHERE game_id = $1")
         .bind(id)
         .fetch_one(&mut *tx)
         .await?;
     if photos == 0 {
-        return Err(AppError::bad("There are no photos yet: the game needs at least one photo."));
+        return Err(AppError::bad(
+            "There are no photos yet: the game needs at least one photo.",
+        ));
     }
     sqlx::query(
         "UPDATE games SET status = 'ready', ready_at = now(), play_code = COALESCE(play_code, $2), updated_at = now()
@@ -578,7 +674,9 @@ pub async fn mark_ready(
         emailed = domain::enqueue_play_emails(&mut tx, &state.config, &game, &sender).await?;
     }
     tx.commit().await?;
-    Ok(Json(json!({ "ok": true, "play_url": game.play_url(&state.config), "emailed": emailed })))
+    Ok(Json(
+        json!({ "ok": true, "play_url": game.play_url(&state.config), "emailed": emailed }),
+    ))
 }
 
 pub async fn notify_play(
@@ -598,7 +696,9 @@ pub async fn notify_play(
     .fetch_one(&mut *tx)
     .await?;
     if recent > 0 {
-        return Err(AppError::TooManyRequests("The play link was emailed less than 10 minutes ago.".into()));
+        return Err(AppError::TooManyRequests(
+            "The play link was emailed less than 10 minutes ago.".into(),
+        ));
     }
     let sender = domain::load_sender(&mut tx, organizer.id).await?;
     let emailed = domain::enqueue_play_emails(&mut tx, &state.config, &game, &sender).await?;
@@ -617,7 +717,10 @@ async fn transition(
     let mut tx = state.db.begin().await?;
     let game = owned_game(&mut tx, organizer, id, true).await?;
     if game.status != from {
-        return Err(AppError::conflict(format!("The game is {} (expected {}).", game.status, from)));
+        return Err(AppError::conflict(format!(
+            "The game is {} (expected {}).",
+            game.status, from
+        )));
     }
     if extra_check == Some("no_teams") {
         let teams: i64 = sqlx::query_scalar("SELECT count(*) FROM teams WHERE game_id = $1")
@@ -635,26 +738,48 @@ async fn transition(
         STATUS_READY => ", finished_at = NULL",
         _ => "",
     };
-    sqlx::query(&format!("UPDATE games SET status = $2, updated_at = now() {timestamp} WHERE id = $1"))
-        .bind(id)
-        .bind(to)
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(&format!(
+        "UPDATE games SET status = $2, updated_at = now() {timestamp} WHERE id = $1"
+    ))
+    .bind(id)
+    .bind(to)
+    .execute(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(())
 }
 
-pub async fn reopen(State(state): State<AppState>, organizer: Organizer, Path(id): Path<Uuid>) -> AppResult<Json<Value>> {
-    transition(&state, &organizer, id, STATUS_READY, STATUS_COLLECTING, Some("no_teams")).await?;
+pub async fn reopen(
+    State(state): State<AppState>,
+    organizer: Organizer,
+    Path(id): Path<Uuid>,
+) -> AppResult<Json<Value>> {
+    transition(
+        &state,
+        &organizer,
+        id,
+        STATUS_READY,
+        STATUS_COLLECTING,
+        Some("no_teams"),
+    )
+    .await?;
     Ok(Json(json!({ "ok": true })))
 }
 
-pub async fn finish(State(state): State<AppState>, organizer: Organizer, Path(id): Path<Uuid>) -> AppResult<Json<Value>> {
+pub async fn finish(
+    State(state): State<AppState>,
+    organizer: Organizer,
+    Path(id): Path<Uuid>,
+) -> AppResult<Json<Value>> {
     transition(&state, &organizer, id, STATUS_READY, STATUS_FINISHED, None).await?;
     Ok(Json(json!({ "ok": true })))
 }
 
-pub async fn resume(State(state): State<AppState>, organizer: Organizer, Path(id): Path<Uuid>) -> AppResult<Json<Value>> {
+pub async fn resume(
+    State(state): State<AppState>,
+    organizer: Organizer,
+    Path(id): Path<Uuid>,
+) -> AppResult<Json<Value>> {
     transition(&state, &organizer, id, STATUS_FINISHED, STATUS_READY, None).await?;
     Ok(Json(json!({ "ok": true })))
 }
@@ -723,12 +848,13 @@ pub async fn delete_photo(
 ) -> AppResult<Json<Value>> {
     let mut tx = state.db.begin().await?;
     let game = owned_game(&mut tx, &organizer, id, true).await?;
-    let participant_id: Option<Uuid> =
-        sqlx::query_scalar("DELETE FROM photos WHERE id = $1 AND game_id = $2 RETURNING participant_id")
-            .bind(photo_id)
-            .bind(id)
-            .fetch_optional(&mut *tx)
-            .await?;
+    let participant_id: Option<Uuid> = sqlx::query_scalar(
+        "DELETE FROM photos WHERE id = $1 AND game_id = $2 RETURNING participant_id",
+    )
+    .bind(photo_id)
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await?;
     let Some(participant_id) = participant_id else {
         return Err(AppError::NotFound);
     };

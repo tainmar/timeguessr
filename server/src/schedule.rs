@@ -61,7 +61,11 @@ pub fn plan_reminders(
     days.into_iter()
         .map(|days_before| {
             let send_at = reminder_send_at(deadline, tz, days_before);
-            PlannedReminder { days_before, send_at, skipped: send_at <= not_before }
+            PlannedReminder {
+                days_before,
+                send_at,
+                skipped: send_at <= not_before,
+            }
         })
         .collect()
 }
@@ -114,7 +118,10 @@ mod tests {
     fn same_day_reminder_never_after_deadline() {
         // Deadline at 09:00 local: D-0 would be 10:00, after the deadline.
         let deadline = Utc.with_ymd_and_hms(2026, 10, 24, 7, 0, 0).unwrap();
-        assert_eq!(reminder_send_at(deadline, paris(), 0), deadline - Duration::hours(2));
+        assert_eq!(
+            reminder_send_at(deadline, paris(), 0),
+            deadline - Duration::hours(2)
+        );
     }
 
     #[test]
@@ -129,6 +136,9 @@ mod tests {
     #[test]
     fn formats_deadline_in_zone() {
         let deadline = Utc.with_ymd_and_hms(2026, 10, 24, 16, 0, 0).unwrap();
-        assert_eq!(format_deadline(deadline, paris()), "Saturday 24 October 2026 at 18:00 (CEST)");
+        assert_eq!(
+            format_deadline(deadline, paris()),
+            "Saturday 24 October 2026 at 18:00 (CEST)"
+        );
     }
 }

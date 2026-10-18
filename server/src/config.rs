@@ -33,7 +33,10 @@ impl Config {
             .unwrap_or_else(|_| "http://localhost:8080".into())
             .trim_end_matches('/')
             .to_string();
-        let mail_driver = match env::var("MAIL_DRIVER").unwrap_or_else(|_| "log".into()).as_str() {
+        let mail_driver = match env::var("MAIL_DRIVER")
+            .unwrap_or_else(|_| "log".into())
+            .as_str()
+        {
             "resend" => MailDriver::Resend,
             "log" => MailDriver::Log,
             other => anyhow::bail!("unknown MAIL_DRIVER {other:?} (expected resend|log)"),
@@ -91,5 +94,8 @@ impl Config {
 }
 
 fn parse_env<T: std::str::FromStr>(key: &str, default: T) -> T {
-    env::var(key).ok().and_then(|v| v.parse().ok()).unwrap_or(default)
+    env::var(key)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
 }

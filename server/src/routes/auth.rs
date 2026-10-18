@@ -48,13 +48,15 @@ pub async fn request_link(
     }
 
     let token = random_token(32);
-    sqlx::query("INSERT INTO login_tokens (email, token_hash, ip, expires_at) VALUES ($1, $2, $3, $4)")
-        .bind(&email)
-        .bind(sha256_hex(&token))
-        .bind(&ip)
-        .bind(Utc::now() + Duration::minutes(LOGIN_TOKEN_MINUTES))
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "INSERT INTO login_tokens (email, token_hash, ip, expires_at) VALUES ($1, $2, $3, $4)",
+    )
+    .bind(&email)
+    .bind(sha256_hex(&token))
+    .bind(&ip)
+    .bind(Utc::now() + Duration::minutes(LOGIN_TOKEN_MINUTES))
+    .execute(&mut *tx)
+    .await?;
     // The token travels in the URL fragment: never sent to servers or logged by proxies.
     let url = state.config.url(&format!("/auth/verify#token={token}"));
     let rendered = templates::login(&url);
@@ -134,7 +136,10 @@ fn time_days(days: i64) -> time::Duration {
     time::Duration::days(days)
 }
 
-pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> AppResult<(CookieJar, Json<Value>)> {
+pub async fn logout(
+    State(state): State<AppState>,
+    jar: CookieJar,
+) -> AppResult<(CookieJar, Json<Value>)> {
     if let Some(cookie) = jar.get(SESSION_COOKIE) {
         sqlx::query("DELETE FROM sessions WHERE token_hash = $1")
             .bind(sha256_hex(cookie.value()))

@@ -35,8 +35,11 @@ pub fn distance_km(lat1: f64, lng1: f64, lat2: f64, lng2: f64) -> f64 {
 /// `500 · (1 − ln(1 + d/c) / ln(1 + D/c))` with c = 0.5 km and D = antipodal distance.
 pub fn location_score(distance_km: f64) -> i32 {
     let d = distance_km.clamp(0.0, MAX_DISTANCE_KM);
-    let ratio = (1.0 + d / LOCATION_SCALE_KM).ln() / (1.0 + MAX_DISTANCE_KM / LOCATION_SCALE_KM).ln();
-    ((MAX_POINTS as f64) * (1.0 - ratio)).round().clamp(0.0, MAX_POINTS as f64) as i32
+    let ratio =
+        (1.0 + d / LOCATION_SCALE_KM).ln() / (1.0 + MAX_DISTANCE_KM / LOCATION_SCALE_KM).ln();
+    ((MAX_POINTS as f64) * (1.0 - ratio))
+        .round()
+        .clamp(0.0, MAX_POINTS as f64) as i32
 }
 
 /// Cauchy-shaped decay: forgiving for ±1 year, steep in the middle, long tail.
@@ -53,7 +56,15 @@ mod tests {
 
     #[test]
     fn year_score_anchors() {
-        let expected = [(0, 500), (1, 481), (2, 431), (3, 368), (5, 250), (10, 100), (20, 29)];
+        let expected = [
+            (0, 500),
+            (1, 481),
+            (2, 431),
+            (3, 368),
+            (5, 250),
+            (10, 100),
+            (20, 29),
+        ];
         for (diff, points) in expected {
             assert_eq!(year_score(2000 + diff, 2000), points, "diff {diff}");
             assert_eq!(year_score(2000 - diff, 2000), points, "diff -{diff}");
@@ -66,7 +77,10 @@ mod tests {
         for diff in 1..120 {
             let s = year_score(2000 + diff, 2000);
             // Strictly decreasing where it matters; integer rounding may plateau in the tail.
-            assert!(s < prev || (diff > 20 && s == prev), "{diff}: {s} !< {prev}");
+            assert!(
+                s < prev || (diff > 20 && s == prev),
+                "{diff}: {s} !< {prev}"
+            );
             prev = s;
         }
     }

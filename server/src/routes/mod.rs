@@ -33,10 +33,19 @@ pub fn router(state: AppState) -> Router {
         .route("/notifications", get(notifications::list))
         .route("/notifications/read", post(notifications::mark_read))
         .route("/games", get(games::list).post(games::create))
-        .route("/games/{id}", get(games::show).patch(games::update).delete(games::delete))
+        .route(
+            "/games/{id}",
+            get(games::show).patch(games::update).delete(games::delete),
+        )
         .route("/games/{id}/participants", post(games::add_participants))
-        .route("/games/{id}/participants/{pid}", delete(games::remove_participant))
-        .route("/games/{id}/participants/{pid}/invite", post(games::resend_invite))
+        .route(
+            "/games/{id}/participants/{pid}",
+            delete(games::remove_participant),
+        )
+        .route(
+            "/games/{id}/participants/{pid}/invite",
+            post(games::resend_invite),
+        )
         .route("/games/{id}/start", post(games::start_collecting))
         .route("/games/{id}/schedule", put(games::update_schedule))
         .route("/games/{id}/ready", post(games::mark_ready))
@@ -48,7 +57,10 @@ pub fn router(state: AppState) -> Router {
         .route("/games/{id}/photos", get(games::photos))
         .route("/games/{id}/photos/{photo_id}", delete(games::delete_photo))
         .route("/games/{id}/teams/{team_id}", delete(games::delete_team))
-        .route("/collect/{token}", get(collect::show).patch(collect::update))
+        .route(
+            "/collect/{token}",
+            get(collect::show).patch(collect::update),
+        )
         .route(
             "/collect/{token}/photos",
             post(collect::upload).layer(DefaultBodyLimit::max(MAX_UPLOAD_BYTES + 512 * 1024)),
@@ -70,8 +82,7 @@ pub fn router(state: AppState) -> Router {
         .layer(middleware::from_fn(no_store_api));
 
     let static_dir = PathBuf::from(&state.config.static_dir);
-    let spa = ServeDir::new(&static_dir)
-        .fallback(ServeFile::new(static_dir.join("index.html")));
+    let spa = ServeDir::new(&static_dir).fallback(ServeFile::new(static_dir.join("index.html")));
     let spa = Router::new()
         .fallback_service(spa)
         .layer(middleware::from_fn(static_cache_headers));
@@ -81,16 +92,17 @@ pub fn router(state: AppState) -> Router {
         .merge(spa)
         .layer(middleware::from_fn(same_origin_writes))
         .layer(
-            TraceLayer::new_for_http().make_span_with(|req: &Request| {
-                // Log the route template, never the concrete path: paths carry secret tokens.
-                let route = req
-                    .extensions()
-                    .get::<MatchedPath>()
-                    .map(|p| p.as_str().to_string())
-                    .unwrap_or_else(|| "static".into());
-                tracing::info_span!("http", method = %req.method(), route = %route)
-            })
-            .on_response(DefaultOnResponse::new().level(Level::INFO)),
+            TraceLayer::new_for_http()
+                .make_span_with(|req: &Request| {
+                    // Log the route template, never the concrete path: paths carry secret tokens.
+                    let route = req
+                        .extensions()
+                        .get::<MatchedPath>()
+                        .map(|p| p.as_str().to_string())
+                        .unwrap_or_else(|| "static".into());
+                    tracing::info_span!("http", method = %req.method(), route = %route)
+                })
+                .on_response(DefaultOnResponse::new().level(Level::INFO)),
         )
         .layer(CompressionLayer::new())
         .layer(SetResponseHeaderLayer::overriding(
@@ -109,11 +121,18 @@ pub fn router(state: AppState) -> Router {
 }
 
 async fn health(axum::extract::State(state): axum::extract::State<AppState>) -> Response {
-    match sqlx::query_scalar::<_, i32>("SELECT 1").fetch_one(&state.db).await {
+    match sqlx::query_scalar::<_, i32>("SELECT 1")
+        .fetch_one(&state.db)
+        .await
+    {
         Ok(_) => Json(json!({ "ok": true })).into_response(),
         Err(e) => {
             tracing::error!(error = ?e, "health check failed");
-            (StatusCode::SERVICE_UNAVAILABLE, Json(json!({ "ok": false }))).into_response()
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(json!({ "ok": false })),
+            )
+                .into_response()
         }
     }
 }
@@ -125,7 +144,11 @@ async fn api_not_found() -> Response {
 /// Reject cross-site state-changing requests (CSRF defense on top of SameSite cookies).
 async fn same_origin_writes(req: Request, next: Next) -> Response {
     if !matches!(*req.method(), Method::GET | Method::HEAD | Method::OPTIONS) {
-        if let Some(origin) = req.headers().get(header::ORIGIN).and_then(|v| v.to_str().ok()) {
+        if let Some(origin) = req
+            .headers()
+            .get(header::ORIGIN)
+            .and_then(|v| v.to_str().ok())
+        {
             let origin_host = origin.split("://").nth(1).unwrap_or_default();
             let host = req
                 .headers()
@@ -163,6 +186,8 @@ async fn static_cache_headers(req: Request, next: Next) -> Response {
     } else {
         "no-cache"
     };
-    response.headers_mut().insert(header::CACHE_CONTROL, HeaderValue::from_static(value));
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static(value));
     response
 }

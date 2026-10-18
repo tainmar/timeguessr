@@ -255,7 +255,10 @@ impl Notification for TeamFinished {
         format!("Team {} finished", self.team)
     }
     fn body(&self) -> String {
-        format!("Team {} finished “{}” with {} points.", self.team, self.game_name, self.score)
+        format!(
+            "Team {} finished “{}” with {} points.",
+            self.team, self.game_name, self.score
+        )
     }
 }
 
@@ -289,9 +292,22 @@ mod tests {
 
     #[test]
     fn channels_follow_preferences() {
-        let important = CollectionComplete { game_id: Uuid::nil(), game_name: "g".into(), total: 3, photos: 4 };
-        let minor = TeamFinished { game_id: Uuid::nil(), game_name: "g".into(), team: "t".into(), score: 1 };
-        assert_eq!(important.via("important"), vec![Channel::Database, Channel::Mail]);
+        let important = CollectionComplete {
+            game_id: Uuid::nil(),
+            game_name: "g".into(),
+            total: 3,
+            photos: 4,
+        };
+        let minor = TeamFinished {
+            game_id: Uuid::nil(),
+            game_name: "g".into(),
+            team: "t".into(),
+            score: 1,
+        };
+        assert_eq!(
+            important.via("important"),
+            vec![Channel::Database, Channel::Mail]
+        );
         assert_eq!(minor.via("important"), vec![Channel::Database]);
         assert_eq!(minor.via("all"), vec![Channel::Database, Channel::Mail]);
         assert_eq!(important.via("none"), vec![Channel::Database]);

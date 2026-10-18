@@ -46,25 +46,31 @@ impl Game {
     }
 
     pub fn play_url(&self, config: &Config) -> Option<String> {
-        self.play_code.as_ref().map(|c| config.url(&format!("/play/{c}")))
+        self.play_code
+            .as_ref()
+            .map(|c| config.url(&format!("/play/{c}")))
     }
 }
 
 pub async fn load_game(conn: &mut PgConnection, id: Uuid) -> AppResult<Game> {
-    Ok(sqlx::query_as::<_, Game>(&format!("SELECT {GAME_COLUMNS} FROM games WHERE id = $1"))
-        .bind(id)
-        .fetch_one(conn)
-        .await?)
+    Ok(
+        sqlx::query_as::<_, Game>(&format!("SELECT {GAME_COLUMNS} FROM games WHERE id = $1"))
+            .bind(id)
+            .fetch_one(conn)
+            .await?,
+    )
 }
 
 /// Row lock on the game: `FOR UPDATE` for state transitions, `FOR SHARE` for writes
 /// that must not interleave with a transition (e.g. an upload racing "game ready").
 pub async fn lock_game(conn: &mut PgConnection, id: Uuid, exclusive: bool) -> AppResult<Game> {
     let lock = if exclusive { "FOR UPDATE" } else { "FOR SHARE" };
-    Ok(sqlx::query_as::<_, Game>(&format!("SELECT {GAME_COLUMNS} FROM games WHERE id = $1 {lock}"))
-        .bind(id)
-        .fetch_one(conn)
-        .await?)
+    Ok(sqlx::query_as::<_, Game>(&format!(
+        "SELECT {GAME_COLUMNS} FROM games WHERE id = $1 {lock}"
+    ))
+    .bind(id)
+    .fetch_one(conn)
+    .await?)
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -97,11 +103,17 @@ impl Progress {
     }
 
     pub fn display_name(&self) -> String {
-        self.name.clone().filter(|n| !n.is_empty()).unwrap_or_else(|| self.email.clone())
+        self.name
+            .clone()
+            .filter(|n| !n.is_empty())
+            .unwrap_or_else(|| self.email.clone())
     }
 }
 
-pub async fn participant_progress(conn: &mut PgConnection, participant_id: Uuid) -> AppResult<Progress> {
+pub async fn participant_progress(
+    conn: &mut PgConnection,
+    participant_id: Uuid,
+) -> AppResult<Progress> {
     Ok(sqlx::query_as::<_, Progress>(&format!(
         "SELECT {PROGRESS_COLUMNS} FROM participant_progress WHERE id = $1"
     ))
@@ -127,7 +139,10 @@ pub struct CollectionStats {
     pub photos: i64,
 }
 
-pub async fn collection_stats(conn: &mut PgConnection, game_id: Uuid) -> AppResult<CollectionStats> {
+pub async fn collection_stats(
+    conn: &mut PgConnection,
+    game_id: Uuid,
+) -> AppResult<CollectionStats> {
     let (total, ready, photos): (i64, i64, i64) = sqlx::query_as(
         "SELECT count(*), count(*) FILTER (WHERE ready), coalesce(sum(photo_count), 0)::bigint
          FROM participant_progress WHERE game_id = $1",
@@ -135,7 +150,12 @@ pub async fn collection_stats(conn: &mut PgConnection, game_id: Uuid) -> AppResu
     .bind(game_id)
     .fetch_one(conn)
     .await?;
-    Ok(CollectionStats { total, ready, pending: total - ready, photos })
+    Ok(CollectionStats {
+        total,
+        ready,
+        pending: total - ready,
+        photos,
+    })
 }
 
 pub struct Sender {
@@ -152,7 +172,9 @@ pub async fn load_sender(conn: &mut PgConnection, organizer_id: Uuid) -> AppResu
             .await?;
     Ok(Sender {
         organizer_id,
-        display_name: name.filter(|n| !n.is_empty()).unwrap_or_else(|| email.clone()),
+        display_name: name
+            .filter(|n| !n.is_empty())
+            .unwrap_or_else(|| email.clone()),
         email,
     })
 }
@@ -233,7 +255,8 @@ pub async fn enqueue_play_emails(
     )
     .await?;
     for p in &participants {
-        let rendered = templates::play_link(&game.name, &sender.display_name, p.name.as_deref(), &url);
+        let rendered =
+            templates::play_link(&game.name, &sender.display_name, p.name.as_deref(), &url);
         mail::enqueue(
             &mut *conn,
             &OutgoingEmail {

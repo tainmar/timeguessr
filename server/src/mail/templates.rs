@@ -111,7 +111,10 @@ pub fn invitation(e: &CollectionEmail) -> Rendered {
         .deadline
         .map(|d| format!(" before <strong>{}</strong>", esc(d)))
         .unwrap_or_default();
-    let deadline_text = e.deadline.map(|d| format!(" before {d}")).unwrap_or_default();
+    let deadline_text = e
+        .deadline
+        .map(|d| format!(" before {d}"))
+        .unwrap_or_default();
     let stats = pending_sentence(e.pending, e.total);
     let body = format!(
         r#"<p>{greet}</p>
@@ -142,7 +145,10 @@ pub fn invitation(e: &CollectionEmail) -> Rendered {
         stats = stats,
     );
     Rendered {
-        subject: format!("{} invited you to “{}”: share {}", e.organizer, e.game_name, photos),
+        subject: format!(
+            "{} invited you to “{}”: share {}",
+            e.organizer, e.game_name, photos
+        ),
         html: layout(&stats, &body, &footer_for(e.organizer, e.game_name)),
         text,
     }
@@ -192,7 +198,12 @@ pub fn reminder(e: &CollectionEmail) -> Rendered {
     }
 }
 
-pub fn play_link(game_name: &str, organizer: &str, participant_name: Option<&str>, url: &str) -> Rendered {
+pub fn play_link(
+    game_name: &str,
+    organizer: &str,
+    participant_name: Option<&str>,
+    url: &str,
+) -> Rendered {
     let body = format!(
         r#"<p>{greet}</p>
 <p>The photos are in: <strong>{game}</strong> is ready to play! &#127918;</p>
@@ -221,7 +232,11 @@ pub fn notification(title: &str, body: &str, url: &str) -> Rendered {
     );
     Rendered {
         subject: format!("[TimeGuessr] {title}"),
-        html: layout(title, &html_body, "You can change your email notification settings from your TimeGuessr dashboard."),
+        html: layout(
+            title,
+            &html_body,
+            "You can change your email notification settings from your TimeGuessr dashboard.",
+        ),
         text: format!("{title}\n\n{body}\n\n{url}"),
     }
 }
@@ -232,9 +247,18 @@ mod tests {
 
     #[test]
     fn pending_sentences() {
-        assert_eq!(pending_sentence(1, 3), "1 of 3 participants hasn't finished uploading yet.");
-        assert_eq!(pending_sentence(2, 3), "2 of 3 participants haven't finished uploading yet.");
-        assert_eq!(pending_sentence(0, 3), "All 3 participants have finished uploading.");
+        assert_eq!(
+            pending_sentence(1, 3),
+            "1 of 3 participants hasn't finished uploading yet."
+        );
+        assert_eq!(
+            pending_sentence(2, 3),
+            "2 of 3 participants haven't finished uploading yet."
+        );
+        assert_eq!(
+            pending_sentence(0, 3),
+            "All 3 participants have finished uploading."
+        );
     }
 
     #[test]

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { Link, useNavigate, useParams } from "react-router";
 import { QRCodeSVG } from "qrcode.react";
 import { api, ApiError, type GameDetail, type OrganizerPhoto, type ParticipantView } from "../api";
+import { useAuth } from "../auth";
 import { OrganizerLayout } from "../components/Layout";
 import Lightbox from "../components/Lightbox";
 import MapView from "../components/MapView";
@@ -223,6 +224,7 @@ function emailLabel(p: ParticipantView): { text: string; tone: string } | null {
 }
 
 function ParticipantsCard({ detail, run }: { detail: GameDetail; run: Run }) {
+  const { organizer } = useAuth();
   const { game, participants } = detail;
   const [entries, setEntries] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -292,7 +294,12 @@ function ParticipantsCard({ detail, run }: { detail: GameDetail; run: Run }) {
                 return (
                   <tr key={p.id} data-testid="participant-row">
                     <td>
-                      <div className="strong">{p.name || p.email}</div>
+                      <div className="strong">
+                        {p.name || p.email}
+                        {organizer && p.email.toLowerCase() === organizer.email.toLowerCase() && (
+                          <span className="chip muted you-chip">you</span>
+                        )}
+                      </div>
                       {p.name && <div className="muted small">{p.email}</div>}
                     </td>
                     <td>

@@ -431,6 +431,11 @@ legend {
   background: #f0ece4;
   color: var(--muted);
 }
+.you-chip {
+  margin-left: 6px;
+  font-size: 0.7rem;
+  padding: 1px 8px;
+}
 .chips {
   display: flex;
   gap: 8px;

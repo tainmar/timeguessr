@@ -67,6 +67,12 @@ test("organizer signs in with a magic link and creates a game", async () => {
   await organizer.getByRole("button", { name: "Create game" }).click();
   await expect(organizer.getByTestId("game-title")).toContainText(GAME);
   gameUrl = new URL(organizer.url()).pathname;
+  // The organizer is a participant by default.
+  const me = organizer.getByTestId("participant-row");
+  await expect(me).toHaveCount(1);
+  await expect(me).toContainText("Morgan from HR");
+  await expect(me).toContainText(organizerEmail);
+  await expect(me).toContainText("you");
 
   await organizer.getByTestId("photos-per-participant").selectOption("2");
   await organizer.getByLabel(/Message to participants/).fill("Dig out your old photos!");
@@ -77,7 +83,7 @@ test("organizer signs in with a magic link and creates a game", async () => {
     .getByTestId("participants-input")
     .fill(`Alice <${alice}>\n${bob}, ${carol}\nnot-an-email`);
   await organizer.getByRole("button", { name: "Add participants" }).click();
-  await expect(organizer.getByTestId("participant-row")).toHaveCount(3);
+  await expect(organizer.getByTestId("participant-row")).toHaveCount(4);
   await expect(organizer.getByText(/ignored invalid: not-an-email/)).toBeVisible();
 });
 
@@ -90,13 +96,13 @@ test("starting the collection emails every participant with the pending count", 
   await organizer.getByRole("button", { name: "Add", exact: true }).click();
   await organizer.getByTestId("start-collecting").click();
   await expect(organizer.getByTestId("collection-card")).toBeVisible();
-  await expect(organizer.getByTestId("collection-progress")).toContainText("0/3");
+  await expect(organizer.getByTestId("collection-progress")).toContainText("0/4");
 
-  for (const [who, email] of Object.entries({ alice, bob, carol })) {
+  for (const [who, email] of Object.entries({ alice, bob, carol, organizer: organizerEmail })) {
     const [mail] = await waitForMails(email, (m) => /invited you to/.test(m.subject));
     expect(mail.subject).toContain(GAME);
     expect(mail.subject).toContain("Morgan from HR invited you");
-    expect(mail.text).toContain("3 of 3 participants haven't finished uploading yet");
+    expect(mail.text).toContain("4 of 4 participants haven't finished uploading yet");
     expect(mail.text).toContain("Dig out your old photos!");
     collectLinks[who] = relative(linkIn(mail, /https?:\/\/[^\s"<]+\/c\/[A-Za-z0-9_-]+/));
   }
@@ -106,7 +112,7 @@ test("Alice uploads her two photos (EXIF suggestions, GPS, map pin) and becomes 
   const [ctx, page] = await newPage(device("Desktop Chrome"));
   await page.goto(collectLinks.alice);
   await expect(page.getByTestId("collect-title")).toHaveText(GAME);
-  await expect(page.getByTestId("pending-stats")).toContainText("3 of 3 participants");
+  await expect(page.getByTestId("pending-stats")).toContainText("4 of 4 participants");
   await expect(page.getByTestId("my-name")).toHaveValue("Alice");
 
   // Photo 1: EXIF date is only a suggestion; use the GPS position stored in the file.
@@ -192,7 +198,8 @@ test("organizer sees statuses and in-app notifications", async () => {
   await expect(row("Alice").getByTestId("participant-status")).toHaveText("Ready");
   await expect(row("Bob").getByTestId("participant-status")).toHaveText("Ready (done)");
   await expect(row("Carol").getByTestId("participant-status")).toHaveText("Partial");
-  await expect(organizer.getByTestId("collection-progress")).toContainText("2/3");
+  await expect(row("Morgan from HR").getByTestId("participant-status")).toHaveText("Not started");
+  await expect(organizer.getByTestId("collection-progress")).toContainText("2/4");
   await expect(organizer.getByTestId("collection-progress")).toContainText("4 photos");
 
   await expect(organizer.getByTestId("bell-count")).toBeVisible();
@@ -217,14 +224,17 @@ test("a due reminder only goes to participants who aren't ready, with the pendin
   );
   expect(rowCount).toBeGreaterThan(0);
   const [mail] = await waitForMails(carol, (m) => /^Reminder/.test(m.subject));
-  expect(mail.text).toContain("1 of 3 participants hasn't finished uploading yet");
+  expect(mail.text).toContain("2 of 4 participants haven't finished uploading yet");
   expect(mail.text).toContain("You've shared 1 of 2 photos so far");
+  // The organizer hasn't uploaded anything either, so they are reminded too.
+  const [own] = await waitForMails(organizerEmail, (m) => /^Reminder/.test(m.subject));
+  expect(own.text).toContain("You've shared 0 of 2 photos so far");
   // Overdue reminders are collapsed into one, and ready participants get nothing.
   await organizer.waitForTimeout(2000);
   expect((await waitForMails(carol, (m) => /^Reminder/.test(m.subject))).length).toBe(1);
   const { rows } = await db().query(
-    "SELECT count(*)::int AS n FROM emails WHERE kind = 'reminder' AND game_id = $1 AND lower(to_email) <> lower($2)",
-    [gameId, carol],
+    "SELECT count(*)::int AS n FROM emails WHERE kind = 'reminder' AND game_id = $1 AND lower(to_email) NOT IN (lower($2), lower($3))",
+    [gameId, carol, organizerEmail],
   );
   expect(rows[0].n).toBe(0);
 });

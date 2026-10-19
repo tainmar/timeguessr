@@ -75,7 +75,13 @@ test("collection: uploads are validated, capped at n even when racing, and strip
   });
   expect(start.ok()).toBe(true);
   const detail = await (await org.get(`/api/games/${gameId}`)).json();
-  for (const p of detail.participants) tokens.push(p.collect_url.split("/c/")[1]);
+  // The organizer is listed too; keep P1 and P2 in a known order.
+  expect(detail.participants).toHaveLength(3);
+  expect(detail.participants.some((p: { email: string }) => p.email === address("api-org"))).toBe(true);
+  for (const label of ["api-p1", "api-p2"]) {
+    const p = detail.participants.find((x: { email: string }) => x.email === address(label));
+    tokens.push(p.collect_url.split("/c/")[1]);
+  }
 
   // Validation
   const badYear = await upload(anon, tokens[0], fixture("photo-a1.jpg"), { year: "1700", lat: "1", lng: "1" });

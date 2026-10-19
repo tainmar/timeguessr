@@ -93,12 +93,22 @@ pub async fn create(
             "You've created a lot of games today. Please try again tomorrow.".into(),
         ));
     }
+    let mut tx = state.db.begin().await?;
     let id: Uuid =
         sqlx::query_scalar("INSERT INTO games (organizer_id, name) VALUES ($1, $2) RETURNING id")
             .bind(organizer.id)
             .bind(name)
-            .fetch_one(&state.db)
+            .fetch_one(&mut *tx)
             .await?;
+    // The organizer plays along by default (they can remove themselves before the game starts).
+    sqlx::query("INSERT INTO participants (game_id, email, name, token) VALUES ($1, $2, $3, $4)")
+        .bind(id)
+        .bind(&organizer.email)
+        .bind(&organizer.name)
+        .bind(crate::util::random_token(24))
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
     Ok(Json(json!({ "id": id })))
 }
 

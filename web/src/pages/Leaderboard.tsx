@@ -192,7 +192,6 @@ function PhotoDetails({ photo }: { photo: LeaderboardPhoto }) {
       <h3>
         {answer.year} · {answer.owner}
       </h3>
-      {answer.caption && <p className="muted">“{answer.caption}”</p>}
       <MapView className="side-map" markers={markers} fitTo={fit} />
       {guesses.length > 0 && (
         <ul className="guess-list">

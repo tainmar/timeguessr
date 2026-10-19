@@ -121,7 +121,6 @@ test("Alice uploads her two photos (EXIF suggestions, GPS, map pin) and becomes 
   await page.getByTestId("year-input").fill("1995");
   await page.getByRole("button", { name: /Use the location stored in the photo/ }).click();
   await expect(page.getByText(/^Pin at 48\.858/)).toBeVisible();
-  await page.getByTestId("caption-input").fill("Eiffel tower trip");
   await page.waitForTimeout(1500);
   await snap(page, "03-collect-form-desktop");
   await page.getByTestId("save-photo").click();
@@ -132,7 +131,6 @@ test("Alice uploads her two photos (EXIF suggestions, GPS, map pin) and becomes 
   // Photo 2: pin by tapping the map (taps zoom in until the pin can be placed precisely).
   await page.getByTestId("file-input").setInputFiles(fixture("photo-a2.jpg"));
   await page.getByTestId("year-input").fill("2008");
-  await expect(page.getByTestId("caption-input")).toHaveValue("");
   await expect(page.getByText(/^Pin at /)).toBeHidden();
   await pinLocation(page, 0.55, 0.45);
   await page.getByTestId("save-photo").click();

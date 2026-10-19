@@ -384,7 +384,6 @@ function RevealView({ reveal, code, onNext }: { reveal: Reveal; code: string; on
           <span>
             📸 <strong>{answer.owner}</strong>
           </span>
-          {answer.caption && <span> · “{answer.caption}”</span>}
         </div>
       </div>
       <div className="reveal-panel">

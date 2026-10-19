@@ -114,7 +114,6 @@ export default function Collect() {
                 <img src={`/api/images/${p.id}/thumb`} alt="" />
                 <figcaption>
                   <strong>{p.year}</strong>
-                  {p.caption && <span className="muted"> · {p.caption}</span>}
                   <div className="muted small">
                     📍 {p.lat.toFixed(4)}, {p.lng.toFixed(4)}
                   </div>
@@ -163,7 +162,7 @@ export default function Collect() {
       {view.can_upload && !editing && !participant.done && (
         adding ? (
           <PhotoForm
-            // A fresh form (empty year, caption and pin) for every new photo.
+            // A fresh form (empty year and pin) for every new photo.
             key={`new-${view.photos.length}`}
             token={token!}
             view={view}
@@ -264,7 +263,6 @@ function PhotoForm({
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
     existing ? { lat: existing.lat, lng: existing.lng } : null,
   );
-  const [caption, setCaption] = useState(existing?.caption ?? "");
   const [preparing, setPreparing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -306,14 +304,13 @@ function PhotoForm({
       if (existing) {
         await api(`/collect/${token}/photos/${existing.id}`, {
           method: "PATCH",
-          body: { year: yearNum, lat: location.lat, lng: location.lng, caption },
+          body: { year: yearNum, lat: location.lat, lng: location.lng },
         });
       } else {
         const form = new FormData();
         form.append("year", String(yearNum));
         form.append("lat", String(location.lat));
         form.append("lng", String(location.lng));
-        form.append("caption", caption);
         form.append("file", file!, "photo.jpg");
         await api(`/collect/${token}/photos`, { form, method: "POST" });
       }
@@ -390,17 +387,6 @@ function PhotoForm({
               Enter a year between {view.min_year} and {view.max_year}.
             </p>
           )}
-
-          <label>
-            Caption (optional, shown after the guess)
-            <input
-              maxLength={200}
-              value={caption}
-              onChange={(e) => setCaption(e.target.value)}
-              placeholder="e.g. My first concert"
-              data-testid="caption-input"
-            />
-          </label>
         </div>
         <div>
           <span className="label">3. Where exactly?</span>

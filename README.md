@@ -33,10 +33,10 @@ Live at **https://timeguessr.procrastination.land**.
 | | Formula | Examples |
 |---|---|---|
 | Year (500) | `500 / (1 + (Δyears / 5)²)` | 0 → 500, 1 → 481, 2 → 431, 5 → 250, 10 → 100, 20 → 29 |
-| Place (500) | `500 · (1 − ln(1 + d/0.5 km) / ln(1 + D/0.5 km))`, D = distance to the antipode (≈ 20,015 km) | 0 m → 500, 1 km → 448, 10 km → 356, 100 km → 250, 2,000 km → 109, antipode → **0** |
+| Place (500) | `500 · e^(−d / 1,500 km)` | 3 km → 499, 100 km → 468, 500 km → 358, 1,000 km → 257, 2,000 km → 132, 5,000 km → 18, 10,000 km+ → 0 |
 
-The place curve is logarithmic, so it keeps getting steeper as you get closer. It tells "right street" apart from
-"right neighbourhood" just as well as "right country" from "right continent".
+The place curve is exponential: steepest close to the answer, forgiving within a city, about half the points
+in the right country 1,000 km away, and nothing on the wrong side of the planet (the antipode scores 0).
 
 ## Architecture
 

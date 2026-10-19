@@ -13,7 +13,7 @@ use crate::error::{AppError, AppResult};
 use crate::images::{self, ImageProcessError, MAX_UPLOAD_BYTES};
 use crate::notifications::{self, PhotoUploaded};
 use crate::state::AppState;
-use crate::util::{clean_line, opt_clean_line, validate_lat_lng};
+use crate::util::{clean_line, validate_lat_lng};
 
 pub const MIN_YEAR: i32 = 1850;
 
@@ -33,13 +33,12 @@ pub struct PhotoView {
     year: i32,
     lat: f64,
     lng: f64,
-    caption: Option<String>,
     width: i32,
     height: i32,
     created_at: DateTime<Utc>,
 }
 
-const PHOTO_COLUMNS: &str = "id, year, lat, lng, caption, width, height, created_at";
+const PHOTO_COLUMNS: &str = "id, year, lat, lng, width, height, created_at";
 
 pub async fn show(
     State(state): State<AppState>,
@@ -158,7 +157,7 @@ pub async fn upload(
     }
 
     let mut file: Option<Vec<u8>> = None;
-    let (mut year, mut lat, mut lng, mut caption) = (None, None, None, None);
+    let (mut year, mut lat, mut lng) = (None, None, None);
     while let Some(field) = multipart
         .next_field()
         .await
@@ -188,7 +187,6 @@ pub async fn upload(
                 "year" => year = value.trim().parse::<i32>().ok(),
                 "lat" => lat = value.trim().parse::<f64>().ok(),
                 "lng" => lng = value.trim().parse::<f64>().ok(),
-                "caption" => caption = Some(value),
                 _ => {}
             }
         }
@@ -205,7 +203,6 @@ pub async fn upload(
             ))
         }
     };
-    let caption = opt_clean_line(caption.as_deref(), 200);
 
     let processed = {
         let _permit = state
@@ -236,15 +233,14 @@ pub async fn upload(
         )));
     }
     let photo = sqlx::query_as::<_, PhotoView>(&format!(
-        "INSERT INTO photos (game_id, participant_id, year, lat, lng, caption, width, height, image, thumb)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING {PHOTO_COLUMNS}"
+        "INSERT INTO photos (game_id, participant_id, year, lat, lng, width, height, image, thumb)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING {PHOTO_COLUMNS}"
     ))
     .bind(game.id)
     .bind(participant_id)
     .bind(year)
     .bind(lat)
     .bind(lng)
-    .bind(caption)
     .bind(processed.width as i32)
     .bind(processed.height as i32)
     .bind(processed.image)
@@ -276,7 +272,6 @@ pub struct UpdatePhoto {
     year: Option<i32>,
     lat: Option<f64>,
     lng: Option<f64>,
-    caption: Option<String>,
 }
 
 pub async fn update_photo(
@@ -299,18 +294,13 @@ pub async fn update_photo(
         body.lng.unwrap_or(current.lng),
     )
     .map_err(AppError::BadRequest)?;
-    let caption = match body.caption {
-        Some(c) => opt_clean_line(Some(&c), 200),
-        None => current.caption,
-    };
     let photo = sqlx::query_as::<_, PhotoView>(&format!(
-        "UPDATE photos SET year = $2, lat = $3, lng = $4, caption = $5 WHERE id = $1 RETURNING {PHOTO_COLUMNS}"
+        "UPDATE photos SET year = $2, lat = $3, lng = $4 WHERE id = $1 RETURNING {PHOTO_COLUMNS}"
     ))
     .bind(photo_id)
     .bind(year)
     .bind(lat)
     .bind(lng)
-    .bind(caption)
     .fetch_one(&mut *tx)
     .await?;
     tx.commit().await?;

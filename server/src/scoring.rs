@@ -11,9 +11,8 @@ pub const EARTH_RADIUS_KM: f64 = 6371.0088;
 /// Half the Earth's circumference: the distance to the antipode (~20 015 km).
 pub const MAX_DISTANCE_KM: f64 = PI * EARTH_RADIUS_KM;
 
-/// Distance at which the location curve has lost ~10% of its points.
-/// Small values make the curve sharper near the target.
-const LOCATION_SCALE_KM: f64 = 0.5;
+/// Decay length of the location curve: 1,500 km away keeps 1/e (~37%) of the points.
+const LOCATION_SCALE_KM: f64 = 1500.0;
 
 /// Number of years off at which the year score is halved.
 const YEAR_HALF_POINTS_AT: f64 = 5.0;
@@ -28,18 +27,13 @@ pub fn distance_km(lat1: f64, lng1: f64, lat2: f64, lng2: f64) -> f64 {
     (EARTH_RADIUS_KM * c).min(MAX_DISTANCE_KM)
 }
 
-/// Logarithmic decay: 500 at the exact spot, exactly 0 at the antipode, and the
-/// slope keeps increasing as the guess gets closer (scale invariant, so it rewards
-/// "right street" vs "right neighbourhood" as much as "right country" vs "right continent").
+/// Exponential decay, steepest near the target: forgiving within a city, about half
+/// the points in the right country 1,000 km away, and 0 from ~10,000 km (so at the antipode).
 ///
-/// `500 · (1 − ln(1 + d/c) / ln(1 + D/c))` with c = 0.5 km and D = antipodal distance.
+/// `500 · e^(−d / 1500 km)`: 3 km→499, 100 km→468, 500 km→358, 1,000 km→257, 2,000 km→132.
 pub fn location_score(distance_km: f64) -> i32 {
     let d = distance_km.clamp(0.0, MAX_DISTANCE_KM);
-    let ratio =
-        (1.0 + d / LOCATION_SCALE_KM).ln() / (1.0 + MAX_DISTANCE_KM / LOCATION_SCALE_KM).ln();
-    ((MAX_POINTS as f64) * (1.0 - ratio))
-        .round()
-        .clamp(0.0, MAX_POINTS as f64) as i32
+    ((MAX_POINTS as f64) * (-d / LOCATION_SCALE_KM).exp()).round() as i32
 }
 
 /// Cauchy-shaped decay: forgiving for ±1 year, steep in the middle, long tail.
@@ -87,24 +81,38 @@ mod tests {
 
     #[test]
     fn location_score_anchors() {
-        assert_eq!(location_score(0.0), 500);
-        assert_eq!(location_score(1.0), 448);
-        assert_eq!(location_score(10.0), 356);
-        assert_eq!(location_score(100.0), 250);
-        assert_eq!(location_score(MAX_DISTANCE_KM), 0);
-        assert_eq!(location_score(MAX_DISTANCE_KM * 2.0), 0);
+        let expected = [
+            (0.0, 500),
+            (3.0, 499),
+            (10.0, 497),
+            (100.0, 468),
+            (500.0, 358),
+            (1000.0, 257),
+            (2000.0, 132),
+            (5000.0, 18),
+            (10_500.0, 0),
+            (MAX_DISTANCE_KM, 0),
+            (MAX_DISTANCE_KM * 2.0, 0),
+        ];
+        for (d, points) in expected {
+            assert_eq!(location_score(d), points, "{d} km");
+        }
     }
 
     #[test]
-    fn location_score_is_convex_and_decreasing() {
-        // Points lost per extra km shrink as the distance grows.
-        let mut prev_loss_per_km = f64::INFINITY;
-        for d in [0.0, 1.0, 10.0, 100.0, 1000.0, 10000.0] {
-            let step = 1.0 + d;
-            let loss = (location_score(d) - location_score(d + step)) as f64 / step;
-            assert!(loss <= prev_loss_per_km, "{d}");
-            prev_loss_per_km = loss;
+    fn location_score_is_decreasing_and_steepest_close_by() {
+        let mut prev = location_score(0.0);
+        for d in (10..=12_000).step_by(10) {
+            let s = location_score(d as f64);
+            assert!(s <= prev, "{d}: {s} > {prev}");
+            prev = s;
         }
+        // The first 500 km cost more than the next 500 km, and so on.
+        let losses: Vec<i32> = [0.0, 500.0, 1000.0, 1500.0, 2000.0]
+            .windows(2)
+            .map(|w| location_score(w[0]) - location_score(w[1]))
+            .collect();
+        assert!(losses.windows(2).all(|w| w[0] > w[1]), "{losses:?}");
     }
 
     #[test]

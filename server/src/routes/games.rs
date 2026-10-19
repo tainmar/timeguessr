@@ -826,7 +826,6 @@ pub struct OrganizerPhoto {
     year: i32,
     lat: f64,
     lng: f64,
-    caption: Option<String>,
     width: i32,
     height: i32,
     created_at: DateTime<Utc>,
@@ -841,7 +840,7 @@ pub async fn photos(
     owned_game(&mut conn, &organizer, id, false).await?;
     let photos = sqlx::query_as::<_, OrganizerPhoto>(
         "SELECT ph.id, ph.participant_id, p.name AS participant_name, p.email AS participant_email,
-                ph.year, ph.lat, ph.lng, ph.caption, ph.width, ph.height, ph.created_at
+                ph.year, ph.lat, ph.lng, ph.width, ph.height, ph.created_at
          FROM photos ph JOIN participants p ON p.id = ph.participant_id
          WHERE ph.game_id = $1 ORDER BY ph.created_at",
     )

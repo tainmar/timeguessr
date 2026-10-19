@@ -56,12 +56,6 @@ pub fn clean_line(input: &str, max_chars: usize) -> String {
     clean_text(&input.replace(['\n', '\r'], " "), max_chars)
 }
 
-pub fn opt_clean_line(input: Option<&str>, max_chars: usize) -> Option<String> {
-    input
-        .map(|s| clean_line(s, max_chars))
-        .filter(|s| !s.is_empty())
-}
-
 /// Pragmatic email validation: one `@`, non-empty local part, dotted domain, no spaces.
 pub fn is_valid_email(email: &str) -> bool {
     if email.len() > 254 || email.chars().any(|c| c.is_whitespace() || c.is_control()) {

@@ -134,7 +134,7 @@ test("play: no spoilers, exact and antipodal scores, idempotent guesses", async 
 
   const state = await (await anon.get(`/api/play/${code}/state`, { headers: T })).json();
   const raw = JSON.stringify(state);
-  for (const key of ['"lat"', '"lng"', '"caption"', '"owner"', '"answer"']) expect(raw).not.toContain(key);
+  for (const key of ['"lat"', '"lng"', '"owner"', '"answer"']) expect(raw).not.toContain(key);
 
   const first = state.round.photo_id as string;
   const second = Object.keys(truth).find((id) => id !== first)!;

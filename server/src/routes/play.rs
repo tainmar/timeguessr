@@ -1,5 +1,5 @@
 //! Player endpoints: join with a team name, play rounds, leaderboard.
-//! Answers (year, location, owner, caption) are only ever returned after the team
+//! Answers (year, location, owner) are only ever returned after the team
 //! has guessed that photo, or on the leaderboard once the team or the game is finished.
 
 use std::collections::{HashMap, HashSet};
@@ -341,7 +341,6 @@ struct Answer {
     year: i32,
     lat: f64,
     lng: f64,
-    caption: Option<String>,
     owner: Option<String>,
 }
 
@@ -350,7 +349,6 @@ struct AnswerView {
     year: i32,
     lat: f64,
     lng: f64,
-    caption: Option<String>,
     owner: String,
 }
 
@@ -360,7 +358,6 @@ impl From<Answer> for AnswerView {
             year: a.year,
             lat: a.lat,
             lng: a.lng,
-            caption: a.caption,
             owner: a
                 .owner
                 .filter(|o| !o.is_empty())
@@ -371,7 +368,7 @@ impl From<Answer> for AnswerView {
 
 async fn load_answer(conn: &mut PgConnection, photo_id: Uuid) -> AppResult<Answer> {
     Ok(sqlx::query_as::<_, Answer>(
-        "SELECT ph.year, ph.lat, ph.lng, ph.caption, p.name AS owner
+        "SELECT ph.year, ph.lat, ph.lng, p.name AS owner
          FROM photos ph JOIN participants p ON p.id = ph.participant_id WHERE ph.id = $1",
     )
     .bind(photo_id)
@@ -509,7 +506,6 @@ struct LeaderboardPhoto {
     year: i32,
     lat: f64,
     lng: f64,
-    caption: Option<String>,
     owner: Option<String>,
 }
 
@@ -526,7 +522,7 @@ pub async fn leaderboard(
     };
 
     let photos = sqlx::query_as::<_, LeaderboardPhoto>(
-        "SELECT ph.id, ph.year, ph.lat, ph.lng, ph.caption, p.name AS owner
+        "SELECT ph.id, ph.year, ph.lat, ph.lng, p.name AS owner
          FROM photos ph JOIN participants p ON p.id = ph.participant_id
          WHERE ph.game_id = $1 ORDER BY ph.created_at, ph.id",
     )
@@ -612,7 +608,6 @@ pub async fn leaderboard(
                     "year": p.year,
                     "lat": p.lat,
                     "lng": p.lng,
-                    "caption": p.caption,
                     "owner": p.owner.clone().filter(|o| !o.is_empty()).unwrap_or_else(|| "A mystery guest".into()),
                 });
                 view["guesses"] = guesses

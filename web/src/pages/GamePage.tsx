@@ -729,7 +729,6 @@ function PhotosCard({ detail, photos, run }: { detail: GameDetail; photos: Organ
               </button>
               <figcaption>
                 <strong>{p.year}</strong> · {p.participant_name || p.participant_email}
-                {p.caption && <div className="muted small">{p.caption}</div>}
               </figcaption>
               <button
                 className="link-btn danger small"
@@ -753,7 +752,6 @@ function PhotosCard({ detail, photos, run }: { detail: GameDetail; photos: Organ
           <p>
             by <strong>{current.participant_name || current.participant_email}</strong>
           </p>
-          {current.caption && <p className="muted">{current.caption}</p>}
           <MapView className="side-map" markers={markers} fitTo={[[current.lng, current.lat]]} initialZoom={3} initialCenter={[current.lng, current.lat]} />
         </Lightbox>
       )}

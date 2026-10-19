@@ -154,7 +154,6 @@ export interface OrganizerPhoto {
   year: number;
   lat: number;
   lng: number;
-  caption: string | null;
   width: number;
   height: number;
   created_at: string;
@@ -176,7 +175,6 @@ export interface CollectPhoto {
   year: number;
   lat: number;
   lng: number;
-  caption: string | null;
   width: number;
   height: number;
   created_at: string;
@@ -241,7 +239,6 @@ export interface Answer {
   year: number;
   lat: number;
   lng: number;
-  caption: string | null;
   owner: string;
 }
 

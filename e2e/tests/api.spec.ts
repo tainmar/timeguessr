@@ -118,6 +118,19 @@ test("collection: uploads are validated, capped at n even when racing, and strip
   expect(view.can_upload).toBe(false);
 });
 
+test("an organizer who plays gets no photos, years or places until the game ends", async () => {
+  const detail = await (await org.get(`/api/games/${gameId}`)).json();
+  expect(detail.photos_hidden).toBe(true);
+  expect((await org.get(`/api/games/${gameId}/photos`)).status()).toBe(403);
+
+  // An organizer who isn't playing sees everything.
+  const other = (await (await org.post("/api/games", { data: { name: `Spectator ${RUN_ID}` } })).json()).id;
+  const [me] = (await (await org.get(`/api/games/${other}`)).json()).participants;
+  expect((await org.delete(`/api/games/${other}/participants/${me.id}`)).ok()).toBe(true);
+  expect((await (await org.get(`/api/games/${other}`)).json()).photos_hidden).toBe(false);
+  expect((await org.get(`/api/games/${other}/photos`)).ok()).toBe(true);
+});
+
 test("play: no spoilers, exact and antipodal scores, idempotent guesses", async () => {
   const ready = await org.post(`/api/games/${gameId}/ready`, { data: { notify_participants: false } });
   expect(ready.ok()).toBe(true);

@@ -9,7 +9,8 @@ Live at **https://timeguessr.procrastination.land**.
 ## How it works
 
 1. **Organizer** signs in with a magic link (no password), creates a game and pastes participant emails
-   (`alice@x.com` or `Alice Martin <alice@x.com>`).
+   (`alice@x.com` or `Alice Martin <alice@x.com>`). The organizer is a participant by default: while they play,
+   their game page hides the photos, years and places until the game ends.
 2. **Start collecting**: pick a deadline and "D-n" reminders. Each participant gets a personal upload link
    by email, no account needed. Every email says how many participants still haven't finished.
 3. **Participants** upload *n* photos of themselves. For each photo they enter the year and pin the exact place

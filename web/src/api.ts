@@ -143,6 +143,8 @@ export interface GameDetail {
   teams: TeamView[];
   stats: CollectionStats;
   pending_emails: number;
+  /** The organizer plays in this game: photos, years and places stay hidden until it ends. */
+  photos_hidden: boolean;
   max_participants: number;
 }
 

@@ -32,10 +32,8 @@ export default function GamePage() {
 
   const load = useCallback(async () => {
     try {
-      const [d, p] = await Promise.all([
-        api<GameDetail>(`/games/${id}`),
-        api<OrganizerPhoto[]>(`/games/${id}/photos`),
-      ]);
+      const d = await api<GameDetail>(`/games/${id}`);
+      const p = d.photos_hidden ? [] : await api<OrganizerPhoto[]>(`/games/${id}/photos`);
       setDetail(d);
       setPhotos(p);
       setError(null);
@@ -717,8 +715,12 @@ function PhotosCard({ detail, photos, run }: { detail: GameDetail; photos: Organ
   );
   return (
     <section className="card">
-      <h2>Photos ({photos.length})</h2>
-      {photos.length === 0 ? (
+      <h2>Photos ({detail.stats.photos})</h2>
+      {detail.photos_hidden ? (
+        <p className="muted" data-testid="photos-hidden">
+          You're playing too, so the photos, their years and places stay hidden here until the game ends.
+        </p>
+      ) : photos.length === 0 ? (
         <p className="muted">No photos yet.</p>
       ) : (
         <div className="photo-grid">

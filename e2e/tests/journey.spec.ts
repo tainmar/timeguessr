@@ -199,6 +199,9 @@ test("organizer sees statuses and in-app notifications", async () => {
   await expect(row("Morgan from HR").getByTestId("participant-status")).toHaveText("Not started");
   await expect(organizer.getByTestId("collection-progress")).toContainText("2/4");
   await expect(organizer.getByTestId("collection-progress")).toContainText("4 photos");
+  // The organizer plays too, so the admin page shows no photo, year or place.
+  await expect(organizer.getByTestId("photos-hidden")).toBeVisible();
+  await expect(organizer.getByTestId("organizer-photo")).toHaveCount(0);
 
   await expect(organizer.getByTestId("bell-count")).toBeVisible();
   await organizer.getByTestId("bell").click();
@@ -413,6 +416,9 @@ test("anonymous viewers get no answers until the organizer ends the game", async
   organizer.once("dialog", (d) => d.accept());
   await organizer.getByTestId("end-game").click();
   await expect(organizer.getByText("Game ended: answers revealed")).toBeVisible();
+  // The answers are public now, so the organizer sees the photos too.
+  await expect(organizer.getByTestId("organizer-photo")).toHaveCount(4);
+  await expect(organizer.getByTestId("photos-hidden")).toBeHidden();
 
   await page.goto(`${playPath}/leaderboard`);
   await expect(page.getByText("Game over: answers revealed")).toBeVisible();

@@ -35,6 +35,26 @@ async fn owned_game(
     Ok(game)
 }
 
+/// An organizer who plays in their own game mustn't see the answers (photos, years, places)
+/// on the admin page until the game ends and the answers are revealed to everyone.
+async fn photos_hidden(
+    conn: &mut PgConnection,
+    organizer: &Organizer,
+    game: &Game,
+) -> AppResult<bool> {
+    if game.status == STATUS_FINISHED {
+        return Ok(false);
+    }
+    let plays: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM participants WHERE game_id = $1 AND lower(email) = lower($2))",
+    )
+    .bind(game.id)
+    .bind(&organizer.email)
+    .fetch_one(&mut *conn)
+    .await?;
+    Ok(plays)
+}
+
 #[derive(Serialize, sqlx::FromRow)]
 pub struct GameListItem {
     id: Uuid,
@@ -219,6 +239,7 @@ pub async fn show(
     .bind(id)
     .fetch_one(&mut *conn)
     .await?;
+    let photos_hidden = photos_hidden(&mut conn, &organizer, &game).await?;
 
     Ok(Json(json!({
         "game": game,
@@ -230,6 +251,7 @@ pub async fn show(
         "teams": teams,
         "stats": stats,
         "pending_emails": pending_emails,
+        "photos_hidden": photos_hidden,
         "max_participants": state.config.max_participants_per_game,
     })))
 }
@@ -837,7 +859,12 @@ pub async fn photos(
     Path(id): Path<Uuid>,
 ) -> AppResult<Json<Vec<OrganizerPhoto>>> {
     let mut conn = state.db.acquire().await?;
-    owned_game(&mut conn, &organizer, id, false).await?;
+    let game = owned_game(&mut conn, &organizer, id, false).await?;
+    if photos_hidden(&mut conn, &organizer, &game).await? {
+        return Err(AppError::Forbidden(
+            "You're playing in this game: photos stay hidden until it ends.".into(),
+        ));
+    }
     let photos = sqlx::query_as::<_, OrganizerPhoto>(
         "SELECT ph.id, ph.participant_id, p.name AS participant_name, p.email AS participant_email,
                 ph.year, ph.lat, ph.lng, ph.width, ph.height, ph.created_at
